@@ -1,0 +1,109 @@
+.tf-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+  backdrop-filter: blur(2px);
+}
+
+.tf-modal-content {
+  background: #f4d03f;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.1) 0px,
+    rgba(255, 255, 255, 0.1) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  border: 6px solid #873600;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 450px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(214, 137, 16, 0.5);
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Wood effect for header */
+.tf-modal-header {
+  background: #a04000;
+  border-bottom: 4px solid #78281f;
+  padding: 12px 20px;
+  border-radius: 12px 12px 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.tf-modal-title {
+  background: #fad7a1;
+  padding: 8px 30px;
+  border-radius: 10px;
+  border: 3px solid #873600;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+  transform: translateY(-20px);
+}
+
+.tf-modal-title-text {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 700;
+  color: #873600;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.tf-modal-close {
+  position: absolute;
+  right: -15px;
+  top: -15px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #c0392b;
+  border: 3px solid white;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.1s;
+}
+
+.tf-modal-close:hover {
+  transform: scale(1.1);
+}
+
+.tf-modal-close:active {
+  transform: scale(0.9);
+}
+
+.tf-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  font-family: 'Nunito', sans-serif;
+  color: #333;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}

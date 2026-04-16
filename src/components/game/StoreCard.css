@@ -1,0 +1,91 @@
+.tf-store-card {
+  background: #fdf2e9;
+  border: 4px solid #d35400;
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 0 #a04000, 0 8px 10px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 16px;
+  transition: transform 0.2s;
+}
+
+.tf-store-card:hover {
+  transform: translateY(-2px);
+}
+
+.tf-store-locked {
+  filter: grayscale(40%);
+  background: #EAECEE;
+  border-color: #ABB2B9;
+  box-shadow: 0 4px 0 #808B96;
+}
+
+.tf-store-icon {
+  font-size: 3rem;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.tf-store-info {
+  flex: 1;
+  min-width: 150px;
+}
+
+.tf-store-name {
+  margin: 0 0 4px 0;
+  font-family: 'Fredoka', sans-serif;
+  color: #873600;
+  font-size: 1.2rem;
+}
+
+.tf-store-stats {
+  font-size: 0.9rem;
+  color: #6E2C00;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tf-store-level {
+  background: #d35400;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.tf-store-desc {
+  font-style: italic;
+  opacity: 0.8;
+  font-size: 0.8rem;
+}
+
+.tf-store-actions {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.tf-store-actions button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.tf-store-progress {
+  width: 100%;
+  margin-top: 8px;
+}

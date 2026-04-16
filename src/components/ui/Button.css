@@ -1,0 +1,97 @@
+.tf-btn {
+  border: none;
+  border-radius: 12px;
+  font-family: 'Fredoka', 'Nunito', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2), 0 6px 8px rgba(0, 0, 0, 0.15);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tf-btn:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 0px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.tf-btn:disabled {
+  filter: grayscale(100%);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Tamanhos */
+.tf-btn-sm {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+
+.tf-btn-md {
+  padding: 10px 20px;
+  font-size: 1rem;
+}
+
+.tf-btn-lg {
+  padding: 14px 28px;
+  font-size: 1.2rem;
+  border-radius: 16px;
+}
+
+.tf-btn-full {
+  width: 100%;
+}
+
+/* Variantes com gradientes cartoon */
+.tf-btn-primary {
+  background: linear-gradient(180deg, #4da5f2 0%, #2980b9 100%);
+  color: white;
+  border: 2px solid #1a5276;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.tf-btn-success {
+  background: linear-gradient(180deg, #58d68d 0%, #27ae60 100%);
+  color: white;
+  border: 2px solid #1e8449;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.tf-btn-danger {
+  background: linear-gradient(180deg, #ec7063 0%, #c0392b 100%);
+  color: white;
+  border: 2px solid #922b21;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.tf-btn-warning {
+  background: linear-gradient(180deg, #f7dc6f 0%, #f39c12 100%);
+  color: #873600;
+  border: 2px solid #d68910;
+}
+
+.tf-btn-purple {
+  background: linear-gradient(180deg, #af7ac5 0%, #8e44ad 100%);
+  color: white;
+  border: 2px solid #633974;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.tf-btn-secondary {
+  background: linear-gradient(180deg, #ccd1d1 0%, #95a5a6 100%);
+  color: #2c3e50;
+  border: 2px solid #7f8c8d;
+}
+
+/* Layout interno opcional para icones */
+.tf-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

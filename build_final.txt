@@ -1,0 +1,9 @@
+﻿
+> tycoon-game-franchise@0.0.0 build
+> tsc -b && vite build
+
+src/components/effects/PixiCanvas.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/game/StoreList.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/game/UpgradePanel.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/ui/CurrencyDisplay.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/ui/ProgressBar.tsx(1,1): error TS6133: 'React' is declared but its value is never read.

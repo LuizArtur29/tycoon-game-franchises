@@ -1,0 +1,28 @@
+.tf-angel-investor {
+  position: fixed;
+  left: -100px;
+  z-index: 9999;
+  cursor: pointer;
+  filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
+  animation: angelFly 10s linear forwards;
+}
+
+.tf-angel-icon {
+  font-size: 3.5rem;
+  transition: transform 0.2s;
+  animation: angelBounce 1s infinite alternate;
+}
+
+.tf-angel-investor:hover .tf-angel-icon {
+  transform: scale(1.3) rotate(15deg);
+}
+
+@keyframes angelFly {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(100vw + 200px)); }
+}
+
+@keyframes angelBounce {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-15px); }
+}

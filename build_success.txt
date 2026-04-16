@@ -1,0 +1,20 @@
+﻿
+> tycoon-game-franchise@0.0.0 build
+> tsc -b && vite build
+
+src/components/effects/PixiCanvas.tsx(2,10): error TS6133: 'Application' is declared but its value is never read.
+src/components/effects/PixiCanvas.tsx(3,29): error TS6133: 'Texture' is declared but its value is never read.
+src/components/effects/PixiCanvas.tsx(8,10): error TS6133: 'windowSize' is declared but its value is never read.
+src/components/game/OfflineModal.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/game/OfflineModal.tsx(1,17): error TS6133: 'useEffect' is declared but its value is never read.
+src/components/game/StoreCard.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/game/StoreCard.tsx(8,1): error TS6133: 'Decimal' is declared but its value is never read.
+src/components/game/StoreList.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/game/UpgradePanel.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/ui/CurrencyDisplay.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/ui/ProgressBar.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/MainGame.tsx(3,1): error TS6133: 'Button' is declared but its value is never read.
+src/pages/MainGame.tsx(3,24): error TS2307: Cannot find module '../ui/Button' or its corresponding type declarations.
+src/pages/MainGame.tsx(5,33): error TS2307: Cannot find module '../ui/CurrencyDisplay' or its corresponding type declarations.
+src/pages/MainGame.tsx(6,27): error TS2307: Cannot find module '../game/StoreList' or its corresponding type declarations.
+src/pages/MainGame.tsx(7,30): error TS2307: Cannot find module '../game/UpgradePanel' or its corresponding type declarations.
