@@ -18,6 +18,41 @@ function formatMoney(value: Decimal): string {
   return `R$ ${value.toExponential(2)}`;
 }
 
+function formatExecutiveBonus(type: 'profit' | 'cost_reduction' | 'click' | 'global', value: number): string {
+  const percent = (value * 100).toFixed(0);
+  if (type === 'cost_reduction') return `-${percent}% redução de custo`;
+  if (type === 'profit') return `+${percent}% lucro`;
+  if (type === 'click') return `+${percent}% clique`;
+  return `+${percent}% global`;
+}
+
+function isStoreUnlocked(
+  storesCount: number,
+  money: Decimal,
+  currentRegion: string,
+  unlockedRegions: string[],
+  unlockCondition: { type: 'money' | 'stores' | 'region' | 'prestige' | 'none'; value: number; regionId?: string }
+): boolean {
+  if (unlockCondition.type === 'none') return true;
+  if (unlockCondition.type === 'stores') return storesCount >= unlockCondition.value;
+  if (unlockCondition.type === 'money') return money.gte(unlockCondition.value);
+  if (unlockCondition.type === 'region') {
+    if (!unlockCondition.regionId) return false;
+    return unlockCondition.regionId === currentRegion || unlockedRegions.includes(unlockCondition.regionId);
+  }
+  return false;
+}
+
+function getStoreRequirementText(
+  unlockCondition: { type: 'money' | 'stores' | 'region' | 'prestige' | 'none'; value: number; regionId?: string }
+): string {
+  if (unlockCondition.type === 'stores') return `Requer ${unlockCondition.value} lojas compradas`;
+  if (unlockCondition.type === 'money') return `Requer caixa de R$ ${new Decimal(unlockCondition.value).toFixed(0)}`;
+  if (unlockCondition.type === 'region') return 'Requer região específica';
+  if (unlockCondition.type === 'prestige') return `Requer ${unlockCondition.value} IPO(s)`;
+  return '';
+}
+
 // ============================================
 // BUY PANEL - Mostrado quando lote está vazio
 // ============================================
@@ -28,15 +63,18 @@ interface BuyPanelProps {
 
 function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
   const currentRegion = useGameStore(s => s.currentRegion);
+  const unlockedRegions = useGameStore(s => s.unlockedRegions);
   const stores = useGameStore(s => s.stores);
   const buyStore = useGameStore(s => s.buyStore);
   const moneyStr = useGameStore(s => s.money);
   const money = new Decimal(moneyStr);
 
-  const regionDefs = STORE_DEFINITIONS.filter(d => d.region === currentRegion);
+  const regionDefs = STORE_DEFINITIONS
+    .filter(d => d.region === currentRegion)
+    .sort((a, b) => a.baseCost - b.baseCost);
 
   const handleBuy = (defId: string) => {
-    const success = buyStore(defId);
+    const success = buyStore(defId, slotIndex);
     if (success) {
       audioEngine.playSFX('purchase');
       // Dispara confete
@@ -55,7 +93,9 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
       {regionDefs.map(def => {
         const existingCount = stores.filter(s => s.definitionId === def.id).length;
         const cost = calculateStoreCost(def.id, existingCount, 0);
-        const canAfford = money.gte(cost);
+        const unlocked = isStoreUnlocked(stores.length, money, currentRegion, unlockedRegions, def.unlockCondition);
+        const canAfford = unlocked && money.gte(cost);
+        const requirementText = unlocked ? '' : getStoreRequirementText(def.unlockCondition);
 
         return (
           <div
@@ -66,7 +106,7 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
             <div className="sp-store-emoji">{def.emoji}</div>
             <div className="sp-store-info">
               <div className="sp-store-name">{def.name}</div>
-              <div className="sp-store-desc">{def.description}</div>
+              <div className="sp-store-desc">{unlocked ? def.description : requirementText}</div>
             </div>
             <div className={`sp-store-cost ${canAfford ? 'affordable' : ''}`}>
               {formatMoney(cost)}
@@ -82,21 +122,24 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
 // MANAGE PANEL - Mostrado quando clica num prédio
 // ============================================
 interface ManagePanelProps {
-  store: GameStore;
-  onClose: () => void;
+  storeId: string;
 }
 
-function ManageStorePanel({ store, onClose }: ManagePanelProps) {
+function ManageStorePanel({ storeId }: ManagePanelProps) {
+  const store = useGameStore(s => s.stores.find(existingStore => existingStore.id === storeId) ?? null);
   const upgradeStore = useGameStore(s => s.upgradeStore);
   const moneyStr = useGameStore(s => s.money);
+  const storeUpgradeCostReduction = useGameStore(s => s.storeUpgradeCostReduction);
   const money = new Decimal(moneyStr);
   const executives = useStaffStore(s => s.executives);
   const productionMultiplier = useGameStore(s => s.productionMultiplier);
 
+  if (!store) return null;
+
   const definition = STORE_DEFINITIONS.find(d => d.id === store.definitionId);
   if (!definition) return null;
 
-  const upgradeCost = calculateStoreCost(store.definitionId, store.level, 0);
+  const upgradeCost = calculateStoreCost(store.definitionId, store.level, storeUpgradeCostReduction);
   const canAfford = money.gte(upgradeCost);
   const currentProfit = calculateStoreProfit(store, executives, productionMultiplier);
 
@@ -137,7 +180,7 @@ function ManageStorePanel({ store, onClose }: ManagePanelProps) {
             <div>
               <div className="sp-manager-name">{assignedExec.name}</div>
               <div className="sp-manager-bonus">
-                +{(assignedExec.multiplier.value * 100).toFixed(0)}% {assignedExec.multiplier.type}
+                {formatExecutiveBonus(assignedExec.multiplier.type, assignedExec.multiplier.value)}
               </div>
             </div>
           </div>
@@ -186,7 +229,7 @@ export function SidePanel({ isOpen, slotIndex, store, onClose }: SidePanelProps)
         </div>
         <div className="sp-content">
           {store ? (
-            <ManageStorePanel store={store} onClose={onClose} />
+            <ManageStorePanel storeId={store.id} />
           ) : (
             <BuyStorePanel slotIndex={slotIndex} onClose={onClose} />
           )}

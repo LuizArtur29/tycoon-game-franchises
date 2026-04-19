@@ -7,6 +7,7 @@ import { SidePanel } from '@/components/game/SidePanel';
 import { AngelInvestor } from '@/components/game/AngelInvestor';
 import { StatsModal } from '@/components/game/StatsModal';
 import { UpgradePanel } from '@/components/game/UpgradePanel';
+import { Modal } from '@/components/ui/Modal';
 import { audioEngine } from '@/engine/audioEngine';
 import Decimal from 'break_infinity.js';
 import type { GameStore } from '@/types';
@@ -42,14 +43,14 @@ export function MainGame() {
     if (rect) {
       const x = e.clientX - rect.left - 20;
       const y = e.clientY - rect.top - 20;
-      
+
       const newEffect = { id: Date.now(), x, y };
       setClickEffects(prev => [...prev, newEffect]);
 
       const globalX = e.clientX;
       const globalY = e.clientY;
-      window.dispatchEvent(new CustomEvent('spawn_coin', { 
-        detail: { x: globalX, y: globalY, amount: 5 } 
+      window.dispatchEvent(new CustomEvent('spawn_coin', {
+        detail: { x: globalX, y: globalY, amount: 5 }
       }));
 
       setTimeout(() => {
@@ -82,50 +83,51 @@ export function MainGame() {
           🍔 Tycoon Franchises
         </div>
         <div className="tf-header-nav">
-          <button 
+          <button
              className="tf-nav-btn"
              onClick={toggleMute}
              title={isMuted ? "Ativar Som" : "Mudar p/ Mudo"}
           >
              {isMuted ? '🔇' : '🔊'}
           </button>
-          <button 
+          <button
              className="tf-nav-btn"
-             onClick={() => window.location.href = '/map'}
+             disabled
+             title="Mapa único ativo: Megalopolis"
           >
-             🗺️ Mapa
+             🗺️ Megalopolis
           </button>
-          <button 
+          <button
              className="tf-nav-btn"
              onClick={() => window.location.href = '/stocks'}
           >
              💹 Investimentos
           </button>
-          <button 
+          <button
              className="tf-nav-btn"
              onClick={() => setShowStats(true)}
           >
              📊 Stats
           </button>
-          <button 
+          <button
              className="tf-nav-btn"
              onClick={() => setShowUpgrades(!showUpgrades)}
           >
              🔧 Upgrades
           </button>
-          <button 
+          <button
              className="tf-nav-btn"
              onClick={() => window.location.href = '/staff'}
           >
              👥 RH
           </button>
-          <button 
+          <button
              className="tf-nav-btn tf-nav-prestige"
              onClick={() => window.location.href = '/prestige'}
           >
              📈 IPO
           </button>
-          <button 
+          <button
              className="tf-nav-btn"
              onClick={() => window.location.href = '/leaderboard'}
           >
@@ -144,19 +146,19 @@ export function MainGame() {
 
       {showStats && <StatsModal onClose={() => setShowStats(false)} />}
 
-      {/* CONTENT: Mapa + Upgrade Drawer */}
+      {/* CONTENT: Mapa */}
       <div className="tf-content-grid">
         <AngelInvestor />
-        
+
         {/* Mapa Isométrico — ocupa a maior parte */}
         <main className="tf-map-area">
           <IsometricMap onSlotClick={handleSlotClick} />
-          
+
           {/* Botão de clique flutuante */}
           <div className="tf-floating-click-container">
-            <button 
+            <button
               ref={buttonRef}
-              className="tf-big-click-btn" 
+              className="tf-big-click-btn"
               onClick={handleManualClick}
             >
               <span className="tf-big-click-icon">🏪</span>
@@ -164,8 +166,8 @@ export function MainGame() {
               <p>+{clickPower.toExponential(0)} / clique</p>
 
               {clickEffects.map(effect => (
-                <span 
-                  key={effect.id} 
+                <span
+                  key={effect.id}
                   className="tf-floating-text"
                   style={{ left: effect.x, top: effect.y }}
                 >
@@ -175,14 +177,18 @@ export function MainGame() {
             </button>
           </div>
         </main>
-
-        {/* Upgrades Drawer (condicional) */}
-        {showUpgrades && (
-          <aside className="tf-side-area">
-            <UpgradePanel />
-          </aside>
-        )}
       </div>
+
+      <Modal
+        isOpen={showUpgrades}
+        onClose={() => setShowUpgrades(false)}
+        title="Upgrades"
+        contentClassName="tf-modal-content-upgrades"
+      >
+        <div className="tf-upgrades-modal-content">
+          <UpgradePanel />
+        </div>
+      </Modal>
 
       {/* Side Panel (comprar/gerenciar) */}
       <SidePanel

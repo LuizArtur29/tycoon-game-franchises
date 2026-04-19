@@ -149,6 +149,11 @@
   animation: floatBounce 3s ease-in-out infinite;
 }
 
+.tf-upgrades-modal-content {
+  width: 100%;
+  max-height: 80vh;
+}
+
 @keyframes floatBounce {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50% { transform: translateX(-50%) translateY(-6px); }

@@ -4,17 +4,35 @@ import { Button } from '../ui/Button';
 import { CurrencyDisplay } from '../ui/CurrencyDisplay';
 import { audioEngine } from '@/engine/audioEngine';
 import Decimal from 'break_infinity.js';
+import { usePrestigeStore } from '@/store/usePrestigeStore';
 import './UpgradePanel.css';
 
 export function UpgradePanel() {
   const upgrades = useGameStore(state => state.upgrades);
   const moneyStr = useGameStore(state => state.money);
+  const stores = useGameStore(state => state.stores);
+  const currentRegion = useGameStore(state => state.currentRegion);
+  const unlockedRegions = useGameStore(state => state.unlockedRegions);
+  const prestigeCount = usePrestigeStore(state => state.totalPrestigeCount);
   const money = new Decimal(moneyStr);
   const buyUpgrade = useGameStore(state => state.buyUpgrade);
 
-  // Filtra upgrades disponíveis (por enquanto mostraremos todos não comprados)
-  // TODO: filter por unlockConditions futuramente
-  const availableUpgrades = upgrades.filter(u => (!u.purchased || u.repeatable) && (!u.maxLevel || u.currentLevel < u.maxLevel));
+  const isUnlocked = (upgrade: (typeof upgrades)[number]) => {
+    const condition = upgrade.unlockCondition;
+    if (condition.type === 'none') return true;
+    if (condition.type === 'money') return money.gte(condition.value);
+    if (condition.type === 'stores') return stores.length >= condition.value;
+    if (condition.type === 'prestige') return prestigeCount >= condition.value;
+    if (condition.type === 'region') {
+      if (!condition.regionId) return false;
+      return condition.regionId === currentRegion || unlockedRegions.includes(condition.regionId);
+    }
+    return false;
+  };
+
+  const availableUpgrades = upgrades
+    .filter(u => isUnlocked(u) && (!u.purchased || u.repeatable) && (!u.maxLevel || u.currentLevel < u.maxLevel))
+    .sort((a, b) => a.cost - b.cost);
 
   return (
     <div className="tf-upgrade-panel">

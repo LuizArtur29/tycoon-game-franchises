@@ -1,10 +1,11 @@
 .tf-prestige-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   background-color: #1a252f;
   background-image: radial-gradient(circle at center, #2c3e50 0%, #1a252f 100%);
   color: white;
+  overflow: hidden;
 }
 
 .tf-prestige-header {
@@ -25,10 +26,12 @@
 
 .tf-prestige-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .tf-prestige-panel {
@@ -41,6 +44,7 @@
   text-align: center;
   box-shadow: 0 20px 40px rgba(0,0,0,0.5), inset 0 0 20px rgba(243, 156, 18, 0.2);
   backdrop-filter: blur(10px);
+  margin: 8px auto 24px;
 }
 
 .tf-prestige-icon {

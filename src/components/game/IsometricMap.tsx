@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Application, Graphics, Container, FederatedPointerEvent } from 'pixi.js';
+import { Application, Graphics, Container, FederatedPointerEvent, Sprite, Assets, Texture } from 'pixi.js';
 import { useGameStore } from '@/store/useGameStore';
 import { STORE_DEFINITIONS } from '@/data/stores';
 import { BUILDING_COLORS } from '@/data/stores';
 import { REGIONS } from '@/data/regions';
 import mapJson from '@/data/mapa.json';
+import { MAP_LOTES_SLOT_POSITIONS, MAP_LOTES_TILE_KEY_SET, MAP_LOTES_TOTAL_SLOTS, MAP_LOTES_SLOT_SET } from '@/data/mapSlots';
+
+import lojaBrancaImg from '@/assets/loja_branca.png';
+import lojaBrancaFrenteImg from '@/assets/loja_branca_frente.png';
+import logaVermelhaFrenteImg from '@/assets/loga_vermelha_frente.png';
+import lojaVermelhaImg from '@/assets/loja_vermelha.png';
+import mapaVisualImg from '@/assets/mapa_visual.png';
 import type { GameStore, StoreDefinition } from '@/types';
 import './IsometricMap.css';
 
@@ -14,6 +21,10 @@ import './IsometricMap.css';
 
 const TILE_WIDTH = 128;
 const TILE_HEIGHT = 64;
+const MIN_ZOOM = 0.6;
+const MAX_ZOOM = 1.8;
+const WHEEL_ZOOM_STEP = 0.06;
+const BUTTON_ZOOM_STEP = 0.1;
 
 interface TiledLayer {
   type: string;
@@ -39,6 +50,8 @@ const MAP_DATA = mapJson as TiledMapData;
 const BASE_LAYER = MAP_DATA.layers.find(l => l.type === 'tilelayer' && l.name === 'Camada de Blocos 1')
   ?? MAP_DATA.layers.find(l => l.type === 'tilelayer');
 
+// A camada de lotes e lida via mapSlots (fonte unica de verdade).
+
 if (!BASE_LAYER?.data || !BASE_LAYER.width || !BASE_LAYER.height) {
   throw new Error('mapa.json invalido: camada base nao encontrada.');
 }
@@ -47,35 +60,128 @@ const BASE_LAYER_DATA = BASE_LAYER.data as number[];
 const BASE_LAYER_WIDTH = BASE_LAYER.width as number;
 const BASE_LAYER_HEIGHT = BASE_LAYER.height as number;
 
-function collectBuildableGids(tilesets: TiledTileset[]): Set<number> {
-  const sorted = [...tilesets].sort((a, b) => a.firstgid - b.firstgid);
-  const out = new Set<number>();
-  for (let i = 0; i < sorted.length; i++) {
-    const ts = sorted[i];
-    const next = i + 1 < sorted.length ? sorted[i + 1].firstgid : Number.MAX_SAFE_INTEGER;
-    if (!ts.name?.startsWith('landscapeTiles_')) continue;
-    for (let gid = ts.firstgid; gid < next; gid++) out.add(gid);
-  }
-  return out;
-}
-
 const GRID_COLS = BASE_LAYER_WIDTH;
 const GRID_ROWS = BASE_LAYER_HEIGHT;
-const BUILDABLE_GID_SET = collectBuildableGids(MAP_DATA.tilesets);
+
+const STORE_SPRITE_POOL = [
+  lojaBrancaImg,
+  lojaBrancaFrenteImg,
+  logaVermelhaFrenteImg,
+  lojaVermelhaImg,
+];
+
+const PLAYER_SPRITE_SEED_KEY = 'tgf_player_sprite_seed';
+
+function getOrCreatePlayerSpriteSeed(): string {
+  if (typeof window === 'undefined') return 'player_seed_default';
+  const existingSeed = window.localStorage.getItem(PLAYER_SPRITE_SEED_KEY);
+  if (existingSeed) return existingSeed;
+
+  const generatedSeed = `player_${Math.random().toString(36).slice(2, 12)}`;
+  window.localStorage.setItem(PLAYER_SPRITE_SEED_KEY, generatedSeed);
+  return generatedSeed;
+}
+
+function hashToPositiveInt(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
 
 type TileKind = 'void' | 'buildable' | 'blocked';
+
+// ============================================
+// LAYOUT GENERATION
+// ============================================
+
+interface SlotPosition { col: number; row: number; slotIndex: number; }
+interface MapLayout {
+  cols: number;
+  rows: number;
+  tileKinds: TileKind[][];
+  slotPositions: SlotPosition[];
+}
+
+interface PanOffset {
+  x: number;
+  y: number;
+}
+
+function generateMapLayout(): MapLayout {
+  const tileKinds: TileKind[][] = [];
+
+  for (let r = 0; r < GRID_ROWS; r++) {
+    const rowKinds: TileKind[] = [];
+    for (let c = 0; c < GRID_COLS; c++) {
+      let kind: TileKind = 'void';
+      const baseGid = BASE_LAYER_DATA[r * GRID_COLS + c] ?? 0;
+      const tileKey = `${c}_${r}`;
+
+      if (MAP_LOTES_TILE_KEY_SET.has(tileKey)) {
+        kind = 'buildable';
+      } else if (baseGid !== 0) {
+        kind = 'blocked';
+      }
+
+      rowKinds.push(kind);
+    }
+    tileKinds.push(rowKinds);
+  }
+
+  return {
+    cols: GRID_COLS,
+    rows: GRID_ROWS,
+    tileKinds,
+    slotPositions: MAP_LOTES_SLOT_POSITIONS,
+  };
+}
 
 function cartToIso(col: number, row: number) {
   return {
     x: (col - row) * (TILE_WIDTH / 2),
-    y: (col + row) * (TILE_HEIGHT / 2),
+    y: (col + row) * (TILE_HEIGHT / 2) + (TILE_HEIGHT / 2),
   };
 }
 
 function isoToCart(isoX: number, isoY: number) {
-  const col = (isoX / (TILE_WIDTH / 2) + isoY / (TILE_HEIGHT / 2)) / 2;
-  const row = (isoY / (TILE_HEIGHT / 2) - isoX / (TILE_WIDTH / 2)) / 2;
+  const normalizedY = isoY - (TILE_HEIGHT / 2);
+  const col = (isoX / (TILE_WIDTH / 2) + normalizedY / (TILE_HEIGHT / 2)) / 2;
+  const row = (normalizedY / (TILE_HEIGHT / 2) - isoX / (TILE_WIDTH / 2)) / 2;
   return { col: Math.floor(col), row: Math.floor(row) };
+}
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+function calculateInitialPan(layout: MapLayout): PanOffset {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (let r = 0; r < layout.rows; r++) {
+    for (let c = 0; c < layout.cols; c++) {
+      if (layout.tileKinds[r][c] === 'void') continue;
+      const pos = cartToIso(c, r);
+      minX = Math.min(minX, pos.x);
+      maxX = Math.max(maxX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxY = Math.max(maxY, pos.y);
+    }
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+    return { x: 0, y: 0 };
+  }
+
+  return {
+    x: -((minX + maxX) / 2),
+    y: -((minY + maxY) / 2),
+  };
 }
 
 // ============================================
@@ -95,12 +201,10 @@ function drawIsometricBuilding(
   const secondary = hexToNum(colors.secondary);
   const roof = hexToNum(colors.roof);
 
-  // Building dimensions scale with level
   const baseW = TILE_WIDTH * 0.6;
   const baseH = TILE_HEIGHT * 0.35;
   const buildingHeight = 28 + Math.min(level, 20) * 3;
 
-  // Left face (darker)
   g.moveTo(x - baseW / 2, y);
   g.lineTo(x, y + baseH / 2);
   g.lineTo(x, y + baseH / 2 - buildingHeight);
@@ -108,7 +212,6 @@ function drawIsometricBuilding(
   g.closePath();
   g.fill({ color: secondary, alpha: 0.95 });
 
-  // Right face (primary)
   g.moveTo(x + baseW / 2, y);
   g.lineTo(x, y + baseH / 2);
   g.lineTo(x, y + baseH / 2 - buildingHeight);
@@ -116,7 +219,6 @@ function drawIsometricBuilding(
   g.closePath();
   g.fill({ color: primary, alpha: 0.95 });
 
-  // Roof (top face)
   g.moveTo(x, y - buildingHeight - baseH / 2);
   g.lineTo(x + baseW / 2, y - buildingHeight);
   g.lineTo(x, y - buildingHeight + baseH / 2);
@@ -124,7 +226,6 @@ function drawIsometricBuilding(
   g.closePath();
   g.fill({ color: roof, alpha: 0.95 });
 
-  // Windows on left face
   const windowRows = Math.min(Math.floor(buildingHeight / 14), 5);
   for (let wr = 0; wr < windowRows; wr++) {
     const wy = y - 8 - wr * 14;
@@ -135,7 +236,6 @@ function drawIsometricBuilding(
     g.fill({ color: 0xfff9c4, alpha: 0.5 });
   }
 
-  // Windows on right face
   for (let wr = 0; wr < windowRows; wr++) {
     const wy = y - 8 - wr * 14;
     const wx = x + baseW * 0.15;
@@ -145,11 +245,9 @@ function drawIsometricBuilding(
     g.fill({ color: 0xfff9c4, alpha: 0.4 });
   }
 
-  // Door on right face
   g.rect(x + 2, y - 10, 8, 10);
   g.fill({ color: secondary, alpha: 0.8 });
 
-  // Outline
   g.moveTo(x - baseW / 2, y);
   g.lineTo(x, y + baseH / 2);
   g.lineTo(x + baseW / 2, y);
@@ -158,56 +256,6 @@ function drawIsometricBuilding(
   g.lineTo(x - baseW / 2, y - buildingHeight);
   g.lineTo(x - baseW / 2, y);
   g.stroke({ color: 0x000000, width: 1.2, alpha: 0.25 });
-}
-
-// ============================================
-// LAYOUT GENERATION
-// ============================================
-
-interface SlotPosition { col: number; row: number; slotIndex: number; }
-interface MapLayout {
-  cols: number;
-  rows: number;
-  tileKinds: TileKind[][];
-  slotPositions: SlotPosition[];
-}
-
-function generateMapLayout(totalSlots: number): MapLayout {
-  const allBuildableCells: { col: number; row: number }[] = [];
-  const tileKinds: TileKind[][] = [];
-
-  for (let r = 0; r < GRID_ROWS; r++) {
-    const rowKinds: TileKind[] = [];
-    for (let c = 0; c < GRID_COLS; c++) {
-      const gid = BASE_LAYER_DATA[r * GRID_COLS + c] ?? 0;
-      const kind: TileKind = gid === 0 ? 'void' : (BUILDABLE_GID_SET.has(gid) ? 'buildable' : 'blocked');
-      rowKinds.push(kind);
-      if (kind === 'buildable') {
-        allBuildableCells.push({ col: c, row: r });
-      }
-    }
-    tileKinds.push(rowKinds);
-  }
-
-  const centerCol = (GRID_COLS - 1) / 2;
-  const centerRow = (GRID_ROWS - 1) / 2;
-  allBuildableCells.sort((a, b) => {
-    const da = Math.abs(a.col - centerCol) + Math.abs(a.row - centerRow);
-    const db = Math.abs(b.col - centerCol) + Math.abs(b.row - centerRow);
-    if (da !== db) return da - db;
-    if (a.row !== b.row) return a.row - b.row;
-    return a.col - b.col;
-  });
-
-  const slotCells = allBuildableCells.slice(0, Math.min(totalSlots, allBuildableCells.length));
-  const slotPositions = slotCells.map((cell, idx) => ({ ...cell, slotIndex: idx }));
-
-  return {
-    cols: GRID_COLS,
-    rows: GRID_ROWS,
-    tileKinds,
-    slotPositions,
-  };
 }
 
 // ============================================
@@ -223,103 +271,19 @@ function drawIsoDiamond(g: Graphics, x: number, y: number, w: number, h: number,
   g.fill({ color, alpha });
 }
 
-function drawBlockedTile(g: Graphics, x: number, y: number) {
-  drawIsoDiamond(g, x, y, TILE_WIDTH, TILE_HEIGHT, 0x5f6770, 0.95);
-  drawIsoDiamond(g, x, y, TILE_WIDTH - 8, TILE_HEIGHT - 4, 0x737d87, 0.84);
-}
-
-function drawEmptyLot(g: Graphics, x: number, y: number) {
-  drawIsoDiamond(g, x, y, TILE_WIDTH - 6, TILE_HEIGHT - 3, 0x7d6a58, 0.34);
-  drawIsoDiamond(g, x, y, TILE_WIDTH - 16, TILE_HEIGHT - 8, 0xb39b86, 0.22);
-  // Dashed outline
-  g.moveTo(x, y - (TILE_HEIGHT - 6) / 2);
-  g.lineTo(x + (TILE_WIDTH - 10) / 2, y);
-  g.lineTo(x, y + (TILE_HEIGHT - 6) / 2);
-  g.lineTo(x - (TILE_WIDTH - 10) / 2, y);
-  g.closePath();
-  g.stroke({ color: 0xffffff, width: 1.5, alpha: 0.2 });
-  // Plus sign
-  const s = 7;
-  g.moveTo(x - s, y); g.lineTo(x + s, y);
-  g.stroke({ color: 0xffffff, width: 2, alpha: 0.25 });
-  g.moveTo(x, y - s * 0.5); g.lineTo(x, y + s * 0.5);
-  g.stroke({ color: 0xffffff, width: 2, alpha: 0.25 });
-}
-
-function drawPurchasableLot(g: Graphics, x: number, y: number, pulse: number) {
-  drawEmptyLot(g, x, y);
-  const glowAlpha = 0.14 + pulse * 0.16;
-  const outlineAlpha = 0.28 + pulse * 0.2;
-
-  drawIsoDiamond(g, x, y, TILE_WIDTH - 8, TILE_HEIGHT - 4, 0x22c55e, glowAlpha);
-  g.moveTo(x, y - (TILE_HEIGHT - 10) / 2);
-  g.lineTo(x + (TILE_WIDTH - 14) / 2, y);
-  g.lineTo(x, y + (TILE_HEIGHT - 10) / 2);
-  g.lineTo(x - (TILE_WIDTH - 14) / 2, y);
-  g.closePath();
-  g.stroke({ color: 0xffffff, width: 1.8, alpha: outlineAlpha });
-
-  // Price marker style dot to quickly indicate a buyable slot.
-  drawIsoDiamond(g, x, y - 2, TILE_WIDTH * 0.18, TILE_HEIGHT * 0.12, 0xfacc15, 0.9);
-}
-
 function drawGroundContact(g: Graphics, x: number, groundY: number, footprintScale = 1, alpha = 0.2) {
-  // Hard contact right under the building to "pin" the sprite to the floor.
   drawIsoDiamond(g, x, groundY + 1, TILE_WIDTH * 0.38 * footprintScale, TILE_HEIGHT * 0.2, 0x000000, alpha * 0.55);
-  // Soft penumbra for depth.
   drawIsoDiamond(g, x, groundY + 5, TILE_WIDTH * 0.58 * footprintScale, TILE_HEIGHT * 0.34, 0x000000, alpha * 0.35);
 }
 
 function drawGround(
   g: Graphics, centerX: number, centerY: number,
-  cols: number,
-  rows: number,
-  tileKinds: TileKind[][],
-  slotLookup: Map<string, number>
+  cols: number, rows: number,
+  tileKinds: TileKind[][], slotLookup: Map<string, number>
 ) {
-  // Outer grass
-  for (let r = -4; r < rows + 4; r++) {
-    for (let c = -4; c < cols + 4; c++) {
-      const inside = c >= 0 && c < cols && r >= 0 && r < rows;
-      if (inside) continue;
-      const pos = cartToIso(c, r);
-      const grass = ((c + r) % 2 === 0) ? 0x7cb342 : 0x689f38;
-      drawIsoDiamond(g, centerX + pos.x, centerY + pos.y, TILE_WIDTH, TILE_HEIGHT, grass, 0.4);
-    }
-  }
-
-  // Inner grid
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const pos = cartToIso(c, r);
-      const tx = centerX + pos.x;
-      const ty = centerY + pos.y;
-      const key = `${c}_${r}`;
-      const hasBldg = slotLookup.has(key);
-      const kind = tileKinds[r]?.[c] ?? 'void';
-
-      if (kind === 'void') {
-        continue;
-      }
-
-      if (kind === 'blocked') {
-        drawBlockedTile(g, tx, ty);
-        continue;
-      }
-
-      if (hasBldg) {
-        // Occupied lot: slightly denser green to anchor building footprints.
-        const grass = ((Math.floor(c / 2) + Math.floor(r / 2)) % 2 === 0) ? 0x9ece63 : 0x94c55c;
-        drawIsoDiamond(g, tx, ty, TILE_WIDTH, TILE_HEIGHT, grass);
-        drawIsoDiamond(g, tx, ty, TILE_WIDTH - 6, TILE_HEIGHT - 3, 0xffffff, 0.08);
-      } else {
-        // Empty lot checker look similar to city-builder block textures.
-        const grass = ((Math.floor(c / 2) + Math.floor(r / 2)) % 2 === 0) ? 0xb2df76 : 0xa7d66f;
-        drawIsoDiamond(g, tx, ty, TILE_WIDTH, TILE_HEIGHT, grass, 0.96);
-        drawIsoDiamond(g, tx, ty, TILE_WIDTH - 10, TILE_HEIGHT - 6, 0xffffff, 0.07);
-      }
-    }
-  }
+  // FUNÇÃO VAZIA!
+  // O PixiJS não vai desenhar mais nenhum losango base transparente.
+  // A lógica de cliques continuará funcionando graças à matemática.
 }
 
 // ============================================
@@ -332,7 +296,6 @@ interface IsometricMapProps {
 
 export function IsometricMap({ onSlotClick }: IsometricMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<Application | null>(null);
   const [tooltip, setTooltip] = useState<{
     visible: boolean; x: number; y: number;
     name: string; level: number; detail: string;
@@ -343,6 +306,7 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
   const storesRef = useRef(stores);
   const currentRegionRef = useRef(currentRegion);
   const buildAnimRef = useRef<Map<number, number>>(new Map());
+  const playerSpriteSeedRef = useRef(getOrCreatePlayerSpriteSeed());
 
   useEffect(() => { storesRef.current = stores; }, [stores]);
   useEffect(() => { currentRegionRef.current = currentRegion; }, [currentRegion]);
@@ -354,45 +318,105 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
     storesRef.current.filter(s => s.region === currentRegionRef.current), []);
 
   const region = REGIONS.find(r => r.id === currentRegion);
-  const totalSlots = region?.storeSlots || 16;
+  const totalSlots = MAP_LOTES_TOTAL_SLOTS;
+  const usedValidSlots = stores.filter(
+    s => s.region === currentRegion && MAP_LOTES_SLOT_SET.has(s.slotIndex)
+  ).length;
 
   const layoutRef = useRef<MapLayout | null>(null);
   const layoutRegionRef = useRef('');
   if (layoutRegionRef.current !== currentRegion) {
-    layoutRef.current = generateMapLayout(totalSlots);
+    layoutRef.current = generateMapLayout();
     layoutRegionRef.current = currentRegion;
   }
   const layout = layoutRef.current!;
 
   useEffect(() => {
-    let app: Application;
-    let isDestroyed = false;
+    let isCancelled = false; // A nossa Trava de Segurança
+    const app = new Application();
+    let handleWheel: ((e: WheelEvent) => void) | null = null;
 
-    const init = async () => {
-      app = new Application();
-      const width = containerRef.current?.clientWidth || 800;
-      const height = containerRef.current?.clientHeight || 600;
+    const setupPixi = async () => {
+      if (!containerRef.current) return;
+      const width = containerRef.current.clientWidth || 800;
+      const height = containerRef.current.clientHeight || 600;
 
       await app.init({
         width, height, backgroundAlpha: 0, antialias: true,
         resolution: Math.min(window.devicePixelRatio, 2), autoDensity: true
       });
 
-      if (isDestroyed) { app.destroy(true); return; }
-      appRef.current = app;
-      if (containerRef.current && app.canvas)
-        containerRef.current.appendChild(app.canvas as HTMLCanvasElement);
+      // Se o React recarregou a página enquanto o PixiJS iniciava, aborte!
+      if (isCancelled) {
+        app.destroy(true);
+        return;
+      }
+
+      // Injeta o canvas de forma nativa e segura
+      containerRef.current.appendChild(app.canvas as HTMLCanvasElement);
 
       const worldContainer = new Container();
       app.stage.addChild(worldContainer);
 
+      const centerX = width / 2;
+      const centerY = height / 2 - 60;
+      const initialPan = calculateInitialPan(layout);
+      panRef.current.x = initialPan.x;
+      panRef.current.y = initialPan.y;
+      panRef.current.panStartX = initialPan.x;
+      panRef.current.panStartY = initialPan.y;
+
+      // === IMPORTAÇÃO DO FUNDO DO TILED ===
+      try {
+        const bgTex = await Assets.load(mapaVisualImg);
+        if (isCancelled) return; // Aborta se desmontou durante o download
+
+        const bgSprite = new Sprite(bgTex);
+        bgSprite.anchor.set(0.5, 0);
+
+        // 🛑 CALIBRAÇÃO DO MAPA AQUI:
+        // Como o seu mapa mudou, os eixos X e Y precisam ser calibrados.
+        // Se a arte estiver para a direita, diminua o X. Se estiver para baixo, diminua o Y.
+        bgSprite.x = centerX + 370;
+        bgSprite.y = centerY - 33;
+
+        worldContainer.addChildAt(bgSprite, 0);
+      } catch (e) {
+        console.error("Erro ao carregar a imagem do mapa:", e);
+      }
+
+      // Carrega todos os sprites de loja disponiveis para variar visualmente os lotes.
+      const lojaTextures: Texture[] = (
+        await Promise.all(
+          STORE_SPRITE_POOL.map(async (spriteUrl) => {
+            try {
+              return await Assets.load(spriteUrl);
+            } catch (e) {
+              console.error(`Erro ao carregar sprite de loja: ${spriteUrl}`, e);
+              return null;
+            }
+          })
+        )
+      ).filter((tex): tex is Texture => tex !== null);
+      if (isCancelled) return;
+
       const groundLayer = new Container();
       const buildingLayer = new Container();
+      buildingLayer.sortableChildren = true;
       worldContainer.addChild(groundLayer);
       worldContainer.addChild(buildingLayer);
 
-      const centerX = width / 2;
-      const centerY = height / 2 - 60;
+      const buildingSprites = new Map<number, Sprite>();
+
+      // Distribuicao fixa por usuario+regiao+slot para manter o mesmo visual entre sessoes.
+      const getDeterministicTextureForSlot = (slotIndex: number): Texture | undefined => {
+        if (!lojaTextures.length) return undefined;
+
+        const regionId = currentRegionRef.current;
+        const hashInput = `${playerSpriteSeedRef.current}:${regionId}:${slotIndex}`;
+        const textureIndex = hashToPositiveInt(hashInput) % lojaTextures.length;
+        return lojaTextures[textureIndex];
+      };
 
       app.stage.eventMode = 'static';
       app.stage.hitArea = app.screen;
@@ -411,14 +435,6 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
           gfx.clear();
         }
 
-        let bldgGfx = buildingLayer.children[0] as Graphics;
-        if (!bldgGfx) {
-          bldgGfx = new Graphics();
-          buildingLayer.addChild(bldgGfx);
-        } else {
-          bldgGfx.clear();
-        }
-
         const zoom = zoomRef.current;
         worldContainer.scale.set(zoom);
         worldContainer.position.set(
@@ -427,10 +443,9 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
         );
 
         const regionStores = getRegionStores();
-        const pulse = (Math.sin(app.ticker.lastTime * 0.008) + 1) * 0.5;
+
         drawGround(gfx, centerX, centerY, layout.cols, layout.rows, layout.tileKinds, slotLookup);
 
-        // Draw order sorted by depth
         const items: { c: number; r: number; depth: number; slotIdx: number }[] = [];
         for (let r = 0; r < layout.rows; r++) {
           for (let c = 0; c < layout.cols; c++) {
@@ -451,22 +466,36 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
             let anim = buildAnimRef.current.get(slotIdx) ?? 1;
             if (anim < 1) { anim = Math.min(1, anim + 0.03); buildAnimRef.current.set(slotIdx, anim); }
 
-            // Draw shadow / ground contact
-            drawGroundContact(gfx, tx, ty + TILE_HEIGHT / 2, 1, 0.2 * anim);
+            let sprite = buildingSprites.get(slotIdx);
+            if (!sprite) {
+              const storeTexture = getDeterministicTextureForSlot(slotIdx);
+              if (!storeTexture) continue;
+              sprite = new Sprite(storeTexture);
+              sprite.anchor.set(0.5, 1);
+              buildingLayer.addChild(sprite);
+              buildingSprites.set(slotIdx, sprite);
+            }
 
-            // Draw vector building
-            drawIsometricBuilding(bldgGfx, tx, ty + TILE_HEIGHT / 2, store.definitionId, store.level);
-          } else if (layout.tileKinds[item.r]?.[item.c] === 'buildable') {
-            drawPurchasableLot(gfx, tx, ty, pulse);
+            if (sprite) {
+              sprite.visible = true;
+              sprite.x = tx + 3;
+              sprite.y = ty + (TILE_HEIGHT / 2) - 8;
+              sprite.zIndex = item.depth;
+              sprite.scale.set(1, anim);
+            }
+
+          } else {
+            let sprite = buildingSprites.get(slotIdx);
+            if (sprite) sprite.visible = false;
           }
 
           if (hoveredSlot === slotIdx) {
-            drawIsoDiamond(gfx, tx, ty, TILE_WIDTH - 6, TILE_HEIGHT - 3, 0xffffff, 0.15);
+            // O Losango Guia! Use ele para calibrar o bgSprite.x e bgSprite.y
+            drawIsoDiamond(gfx, tx, ty, TILE_WIDTH - 6, TILE_HEIGHT - 3, 0xffffff, 0.25);
           }
         }
       };
 
-      // === INPUT ===
       app.stage.on('pointerdown', (e: FederatedPointerEvent) => {
         panRef.current.dragging = true;
         panRef.current.startX = e.global.x; panRef.current.startY = e.global.y;
@@ -529,32 +558,47 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
         setTooltip(t => ({ ...t, visible: false }));
       });
 
-      const onWheel = (e: WheelEvent) => {
+      handleWheel = (e: WheelEvent) => {
         e.preventDefault();
-        zoomRef.current = Math.min(2.5, Math.max(0.3, zoomRef.current + (e.deltaY > 0 ? -0.1 : 0.1)));
+        const direction = e.deltaY > 0 ? -1 : 1;
+        const intensity = Math.min(1, Math.abs(e.deltaY) / 120);
+        const delta = direction * WHEEL_ZOOM_STEP * intensity;
+        zoomRef.current = clampZoom(zoomRef.current + delta);
       };
-      containerRef.current?.addEventListener('wheel', onWheel, { passive: false });
 
+      containerRef.current?.addEventListener('wheel', handleWheel, { passive: false });
       app.ticker.add(() => redraw());
-      return () => { containerRef.current?.removeEventListener('wheel', onWheel); };
     };
 
-    const p = init();
+    setupPixi();
+
+    // Limpeza super agressiva e garantida
     return () => {
-      isDestroyed = true;
-      p.then(c => { if (c) c(); if (app) app.destroy({ removeView: true }, { children: true, texture: true }); });
+      isCancelled = true; // Impede promises pela metade de continuarem
+      if (handleWheel && containerRef.current) {
+        containerRef.current.removeEventListener('wheel', handleWheel);
+      }
+      try {
+        // Arranca o canvas do HTML
+        if (app.canvas && app.canvas.parentNode) {
+          app.canvas.parentNode.removeChild(app.canvas);
+        }
+        app.destroy(true, { children: true, texture: true, baseTexture: true });
+      } catch (e) {
+        // fail silently
+      }
     };
-  }, [currentRegion, totalSlots, layout, getRegionStores, onSlotClick]);
+  }, [currentRegion, layout, getRegionStores, onSlotClick]);
 
   const handleZoom = (d: number) => {
-    zoomRef.current = Math.min(2.5, Math.max(0.3, zoomRef.current + d * 0.15));
+    zoomRef.current = clampZoom(zoomRef.current + d * BUTTON_ZOOM_STEP);
   };
 
   return (
     <div className="iso-map-wrapper" ref={containerRef}>
       <div className="iso-map-hud">
         <div className="iso-hud-pill"><span className="hud-emoji">📍</span>{region?.name || 'Região'}</div>
-        <div className="iso-hud-pill"><span className="hud-emoji">🏢</span>{stores.filter(s => s.region === currentRegion).length}/{totalSlots} lotes</div>
+        <div className="iso-hud-pill"><span className="hud-emoji">🏢</span>{usedValidSlots}/{totalSlots} lotes</div>
       </div>
       <div className="iso-zoom-controls">
         <button className="iso-zoom-btn" onClick={() => handleZoom(1)}>+</button>

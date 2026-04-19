@@ -137,8 +137,18 @@ export function PixiCanvas() {
       isDestroyed = true;
       cleanupPromise.then(cleanupFn => {
         if (cleanupFn) cleanupFn();
-        if (app) app.destroy({ removeView: true }, { children: true, texture: true });
-        if (fallbackTexture) fallbackTexture.destroy();
+
+        try {
+          if (app) {
+            if (app.canvas && app.canvas.parentNode) {
+              app.canvas.parentNode.removeChild(app.canvas);
+            }
+            app.destroy(true);
+          }
+          if (fallbackTexture) fallbackTexture.destroy();
+        } catch (error) {
+          console.warn("Limpeza do PixiCanvas interceptada pelo Strict Mode.");
+        }
       });
     };
   }, []);

@@ -15,6 +15,80 @@ import { useStaffStore } from '@/store/useStaffStore';
 import { usePrestigeStore } from '@/store/usePrestigeStore';
 import { useAdsStore } from '@/store/useAdsStore';
 import { useMarketStore } from '@/store/useMarketStore';
+import {
+  MAP_LOTES_SLOT_SET,
+  getFirstFreeMapLoteSlot,
+} from '@/data/mapSlots';
+
+const DEFAULT_REGION_ID = REGIONS[0]?.id ?? 'megalopolis';
+
+function cloneDefaultUpgrades(): Upgrade[] {
+  return JSON.parse(JSON.stringify(UPGRADES)) as Upgrade[];
+}
+
+function calculateUpgradeCostReduction(upgrades: Upgrade[]): number {
+  const totalReduction = upgrades.reduce((acc, upgrade) => {
+    if (!upgrade.purchased) return acc;
+    if (upgrade.effect.target !== 'upgradeCost' || upgrade.effect.type !== 'reduce') return acc;
+    return acc + upgrade.effect.value * Math.max(1, upgrade.currentLevel);
+  }, 0);
+
+  // Evita custo zero/negativo em upgrades de loja.
+  return Math.min(0.8, Math.max(0, totalReduction));
+}
+
+function mergePersistedUpgrades(persistedUpgrades: Upgrade[] | undefined): Upgrade[] {
+  const defaults = cloneDefaultUpgrades();
+  if (!persistedUpgrades?.length) return defaults;
+
+  const persistedById = new Map(persistedUpgrades.map((upgrade) => [upgrade.id, upgrade]));
+  return defaults.map((defaultUpgrade) => {
+    const persisted = persistedById.get(defaultUpgrade.id);
+    if (!persisted) return defaultUpgrade;
+
+    return {
+      ...defaultUpgrade,
+      purchased: Boolean(persisted.purchased),
+      currentLevel: typeof persisted.currentLevel === 'number' ? persisted.currentLevel : 0,
+    };
+  });
+}
+
+function isStoreDefinitionUnlocked(state: Pick<GameStoreState, 'stores' | 'money' | 'unlockedRegions' | 'currentRegion'>, definitionId: string): boolean {
+  const definition = STORE_DEFINITIONS.find((item) => item.id === definitionId);
+  if (!definition) return false;
+
+  const condition = definition.unlockCondition;
+  if (condition.type === 'none') return true;
+  if (condition.type === 'stores') return state.stores.length >= condition.value;
+  if (condition.type === 'money') return deserializeDecimal(state.money).gte(condition.value);
+  if (condition.type === 'region') {
+    if (!condition.regionId) return false;
+    return condition.regionId === state.currentRegion || state.unlockedRegions.includes(condition.regionId);
+  }
+  return true;
+}
+
+function normalizeStoresForSingleMap(stores: GameStore[] | undefined): GameStore[] {
+  if (!stores?.length) return [];
+
+  const usedSlots = new Set<number>();
+  const sortedByPurchase = [...stores].sort((a, b) => a.purchasedAt - b.purchasedAt);
+  const normalized: GameStore[] = [];
+
+  for (const store of sortedByPurchase) {
+    if (!MAP_LOTES_SLOT_SET.has(store.slotIndex)) continue;
+    if (usedSlots.has(store.slotIndex)) continue;
+
+    usedSlots.add(store.slotIndex);
+    normalized.push({
+      ...store,
+      region: DEFAULT_REGION_ID,
+    });
+  }
+
+  return normalized;
+}
 
 // ============================================
 // Serialization helpers for Decimal
@@ -36,6 +110,7 @@ interface GameStoreState {
   clickPower: string;
   globalMultiplier: number;
   productionMultiplier: number;
+  storeUpgradeCostReduction: number;
   totalClicks: number;
 
   // Stores
@@ -57,7 +132,7 @@ interface GameStoreState {
   // Actions
   tick: (deltaMs: number) => void;
   click: () => void;
-  buyStore: (definitionId: string) => boolean;
+  buyStore: (definitionId: string, slotIndex?: number) => boolean;
   upgradeStore: (storeId: string) => boolean;
   buyUpgrade: (upgradeId: string) => boolean;
   unlockRegion: (regionId: string) => boolean;
@@ -82,13 +157,14 @@ export const useGameStore = create<GameStoreState>()(
       clickPower: String(BALANCE.BASE_CLICK_POWER),
       globalMultiplier: 1,
       productionMultiplier: 1,
+      storeUpgradeCostReduction: 0,
       totalClicks: 0,
 
       stores: [],
-      currentRegion: 'esperanca',
-      unlockedRegions: ['esperanca'],
+      currentRegion: DEFAULT_REGION_ID,
+      unlockedRegions: [DEFAULT_REGION_ID],
 
-      upgrades: JSON.parse(JSON.stringify(UPGRADES)),
+      upgrades: cloneDefaultUpgrades(),
 
       lastTickTimestamp: Date.now(),
       totalPlayTime: 0,
@@ -161,10 +237,15 @@ export const useGameStore = create<GameStoreState>()(
       },
 
       // ========== BUY STORE ==========
-      buyStore: (definitionId: string) => {
+      buyStore: (definitionId: string, slotIndex?: number) => {
         const state = get();
         const definition = STORE_DEFINITIONS.find(d => d.id === definitionId);
         if (!definition) return false;
+
+        if (!isStoreDefinitionUnlocked(state, definitionId)) return false;
+
+        // Impede compra de loja de outra regiao.
+        if (definition.region !== state.currentRegion) return false;
 
         // Conta quantas lojas já tem deste tipo
         const existingCount = state.stores.filter(
@@ -176,21 +257,27 @@ export const useGameStore = create<GameStoreState>()(
 
         if (currentMoney.lt(cost)) return false;
 
-        // Encontra o menor slotIndex disponível na região
-        const regionStores = state.stores.filter(s => s.region === definition.region);
+        const regionStores = state.stores.filter(s => s.region === state.currentRegion);
         const usedSlots = new Set(regionStores.map(s => s.slotIndex));
-        let slotIndex = 0;
-        while (usedSlots.has(slotIndex)) slotIndex++;
+
+        let targetSlot = slotIndex;
+        if (targetSlot === undefined) {
+          targetSlot = getFirstFreeMapLoteSlot(usedSlots) ?? undefined;
+        }
+
+        if (targetSlot === undefined) return false;
+        if (!MAP_LOTES_SLOT_SET.has(targetSlot)) return false;
+        if (usedSlots.has(targetSlot)) return false;
 
         const newStore: GameStore = {
           id: generateId(),
           definitionId,
           level: 1,
           managerId: null,
-          region: definition.region,
+          region: state.currentRegion,
           upgrades: [],
           purchasedAt: Date.now(),
-          slotIndex,
+          slotIndex: targetSlot,
         };
 
         set({
@@ -210,7 +297,7 @@ export const useGameStore = create<GameStoreState>()(
         if (storeIndex === -1) return false;
 
         const store = state.stores[storeIndex];
-        const cost = calculateStoreCost(store.definitionId, store.level, 0);
+        const cost = calculateStoreCost(store.definitionId, store.level, state.storeUpgradeCostReduction);
         const currentMoney = deserializeDecimal(state.money);
 
         if (currentMoney.lt(cost)) return false;
@@ -272,6 +359,10 @@ export const useGameStore = create<GameStoreState>()(
             effect.type === 'multiply'
               ? state.productionMultiplier * effect.value
               : state.productionMultiplier + effect.value;
+        } else if (effect.target === 'upgradeCost') {
+          const currentReduction = state.storeUpgradeCostReduction;
+          const effectReduction = effect.type === 'reduce' ? effect.value : 0;
+          newState.storeUpgradeCostReduction = Math.min(0.8, Math.max(0, currentReduction + effectReduction));
         }
 
         set(newState);
@@ -282,6 +373,12 @@ export const useGameStore = create<GameStoreState>()(
       // ========== UNLOCK REGION ==========
       unlockRegion: (regionId: string) => {
         const state = get();
+        if (regionId === DEFAULT_REGION_ID) {
+          if (state.currentRegion !== DEFAULT_REGION_ID || state.unlockedRegions.length !== 1) {
+            set({ currentRegion: DEFAULT_REGION_ID, unlockedRegions: [DEFAULT_REGION_ID] });
+          }
+          return false;
+        }
         if (state.unlockedRegions.includes(regionId)) return false;
 
         const region = REGIONS.find((r) => r.id === regionId);
@@ -303,10 +400,8 @@ export const useGameStore = create<GameStoreState>()(
 
       // ========== CHANGE REGION ==========
       changeRegion: (regionId: string) => {
-        const state = get();
-        if (state.unlockedRegions.includes(regionId)) {
-          set({ currentRegion: regionId });
-        }
+        if (regionId !== DEFAULT_REGION_ID) return;
+        set({ currentRegion: DEFAULT_REGION_ID, unlockedRegions: [DEFAULT_REGION_ID] });
       },
 
       // ========== ADD MONEY ==========
@@ -328,11 +423,12 @@ export const useGameStore = create<GameStoreState>()(
           clickPower: String(BALANCE.BASE_CLICK_POWER),
           globalMultiplier: 1,
           productionMultiplier: 1,
+          storeUpgradeCostReduction: 0,
           totalClicks: 0,
           stores: [],
-          currentRegion: 'esperanca',
-          unlockedRegions: ['esperanca'],
-          upgrades: JSON.parse(JSON.stringify(UPGRADES)),
+          currentRegion: DEFAULT_REGION_ID,
+          unlockedRegions: [DEFAULT_REGION_ID],
+          upgrades: cloneDefaultUpgrades(),
           _moneyPerSecond: '0',
           lastTickTimestamp: Date.now(),
         });
@@ -368,6 +464,7 @@ export const useGameStore = create<GameStoreState>()(
         clickPower: state.clickPower,
         globalMultiplier: state.globalMultiplier,
         productionMultiplier: state.productionMultiplier,
+        storeUpgradeCostReduction: state.storeUpgradeCostReduction,
         totalClicks: state.totalClicks,
         stores: state.stores,
         currentRegion: state.currentRegion,
@@ -377,6 +474,23 @@ export const useGameStore = create<GameStoreState>()(
         totalPlayTime: state.totalPlayTime,
         gameVersion: state.gameVersion,
       }),
+      merge: (persistedState, currentState) => {
+        const merged = {
+          ...currentState,
+          ...(persistedState as Partial<GameStoreState>),
+        };
+
+        const mergedUpgrades = mergePersistedUpgrades(merged.upgrades);
+
+        return {
+          ...merged,
+          currentRegion: DEFAULT_REGION_ID,
+          unlockedRegions: [DEFAULT_REGION_ID],
+          upgrades: mergedUpgrades,
+          storeUpgradeCostReduction: calculateUpgradeCostReduction(mergedUpgrades),
+          stores: normalizeStoresForSingleMap(merged.stores),
+        };
+      },
     }
   )
 );

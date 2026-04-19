@@ -7,6 +7,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   disableBackdropClick?: boolean;
+  contentClassName?: string;
 }
 
 export function Modal({
@@ -15,6 +16,7 @@ export function Modal({
   title,
   children,
   disableBackdropClick = false,
+  contentClassName,
 }: ModalProps) {
   // Prevent body scroll
   useEffect(() => {
@@ -36,7 +38,7 @@ export function Modal({
       onClick={disableBackdropClick ? undefined : onClose}
     >
       <div 
-        className="tf-modal-content"
+        className={`tf-modal-content ${contentClassName ?? ''}`.trim()}
         onClick={e => e.stopPropagation()} // Prevent bubbling to overlay
       >
         <div className="tf-modal-header">

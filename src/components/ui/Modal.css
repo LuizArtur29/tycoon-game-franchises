@@ -33,6 +33,12 @@
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+.tf-modal-content.tf-modal-content-upgrades {
+  width: min(94vw, 860px);
+  max-width: 860px;
+  max-height: 92vh;
+}
+
 /* Wood effect for header */
 .tf-modal-header {
   background: #a04000;
