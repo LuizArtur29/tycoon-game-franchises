@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        var isCrazyGamesHost = /(^|\.)crazygames\.com$/i.test(window.location.hostname);
+        var forceSdk = !!window.__FORCE_CRAZYGAMES_SDK__;
+        if (!isCrazyGamesHost && !forceSdk) return;
+
+        var script = document.createElement('script');
+        script.src = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
+        document.head.appendChild(script);
+      })();
+    </script>
     <title>tycoon-game-franchise</title>
   </head>
   <body>

@@ -12,14 +12,21 @@ export function PixiCanvas() {
     const initPixi = async () => {
       app = new Application();
       // Inicialização do PixiJS v8
-      await app.init({ backgroundAlpha: 0, resizeTo: window });
-      
+      await app.init({
+        backgroundAlpha: 0,
+        backgroundColor: 0x000000,
+        antialias: true,
+        resizeTo: window,
+      });
+
       if (isDestroyed) {
         app.destroy(true);
         return;
       }
       
       if (containerRef.current && app.canvas) {
+        // Força transparência visual do canvas de efeitos.
+        app.canvas.style.background = 'transparent';
         containerRef.current.appendChild(app.canvas as HTMLCanvasElement);
       }
 
@@ -153,5 +160,5 @@ export function PixiCanvas() {
     };
   }, []);
 
-  return <div ref={containerRef} style={{ position: 'fixed', top: 0, left: 0, pointerEvents: 'none', width: '100%', height: '100%', zIndex: 9999 }} />;
+  return <div ref={containerRef} style={{ position: 'fixed', top: 0, left: 0, pointerEvents: 'none', width: '100%', height: '100%', zIndex: -1 }} />;
 }

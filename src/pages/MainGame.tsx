@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '@/store/useGameStore';
 import { CurrencyDisplay } from '@/components/ui/CurrencyDisplay';
@@ -11,6 +11,7 @@ import { UpgradePanel } from '@/components/game/UpgradePanel';
 import { Modal } from '@/components/ui/Modal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { audioEngine } from '@/engine/audioEngine';
+import { crazyGamesService } from '@/services/crazyGamesService';
 import Decimal from 'break_infinity.js';
 import type { GameStore } from '@/types';
 import { useI18n } from '@/i18n/useI18n';
@@ -78,6 +79,22 @@ export function MainGame() {
     const newMuted = audioEngine.toggleMute();
     setIsMuted(newMuted);
   };
+
+  useEffect(() => {
+    crazyGamesService.gameplayStart();
+    return () => {
+      crazyGamesService.gameplayStop();
+    };
+  }, []);
+
+  useEffect(() => {
+    const hasBlockingOverlay = showStats || showUpgrades || panelOpen;
+    if (hasBlockingOverlay) {
+      crazyGamesService.gameplayStop();
+    } else {
+      crazyGamesService.gameplayStart();
+    }
+  }, [showStats, showUpgrades, panelOpen]);
 
   return (
     <div className="tf-main-game">

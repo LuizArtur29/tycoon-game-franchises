@@ -4,6 +4,7 @@ import { usePrestigeStore } from '@/store/usePrestigeStore';
 import { Button } from '@/components/ui/Button';
 import { calculatePrestigeReward } from '@/engine/prestigeEngine';
 import { audioEngine } from '@/engine/audioEngine';
+import { crazyGamesService } from '@/services/crazyGamesService';
 import { useI18n } from '@/i18n/useI18n';
 import Decimal from 'break_infinity.js';
 import './PrestigePage.css';
@@ -31,6 +32,7 @@ export function PrestigePage() {
         resetForPrestige();
         audioEngine.playSFX('prestige');
         window.dispatchEvent(new CustomEvent('spawn_confetti'));
+        crazyGamesService.happytime();
         navigate('/');
       }
     }

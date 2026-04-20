@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -6,6 +6,7 @@ import { CurrencyDisplay } from '../ui/CurrencyDisplay';
 import { useAdsStore } from '@/store/useAdsStore';
 import { formatTime } from '@/engine/utils';
 import { useI18n } from '@/i18n/useI18n';
+import { crazyGamesService } from '@/services/crazyGamesService';
 import type { OfflineEarnings } from '@/types';
 import './OfflineModal.css';
 
@@ -19,6 +20,13 @@ export function OfflineModal({ earnings, onClose }: OfflineModalProps) {
   const addMoney = useGameStore(state => state.addMoney);
   const showRewardedAd = useAdsStore(state => state.showRewardedAd);
   const [isProcessingAd, setIsProcessingAd] = useState(false);
+
+  useEffect(() => {
+    crazyGamesService.gameplayStop();
+    return () => {
+      crazyGamesService.gameplayStart();
+    };
+  }, []);
 
   const handleClaimNormal = () => {
     addMoney(earnings.normalEarnings);
