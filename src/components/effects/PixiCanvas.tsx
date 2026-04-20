@@ -146,7 +146,7 @@ export function PixiCanvas() {
             app.destroy(true);
           }
           if (fallbackTexture) fallbackTexture.destroy();
-        } catch (error) {
+        } catch {
           console.warn("Limpeza do PixiCanvas interceptada pelo Strict Mode.");
         }
       });

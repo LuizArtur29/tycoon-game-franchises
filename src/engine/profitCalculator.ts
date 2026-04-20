@@ -99,6 +99,30 @@ export function calculateStoreCost(
 }
 
 /**
+ * Calcula o valor de venda de uma loja baseado no investimento teorico
+ * (compra inicial + upgrades por nivel) e uma taxa de retorno.
+ */
+export function calculateStoreSellValue(
+  definitionId: string,
+  level: number,
+  refundRate: number
+): Decimal {
+  const definition = STORE_DEFINITIONS.find(d => d.id === definitionId);
+  if (!definition) return new Decimal(0);
+
+  const safeLevel = Math.max(1, Math.floor(level));
+  const safeRefund = Math.max(0, Math.min(1, refundRate));
+  const growth = definition.costMultiplier;
+
+  let invested = new Decimal(0);
+  for (let i = 0; i < safeLevel; i++) {
+    invested = invested.plus(new Decimal(definition.baseCost).times(Math.pow(growth, i)));
+  }
+
+  return invested.times(safeRefund);
+}
+
+/**
  * Calcula o multiplicador de produção baseado nos upgrades comprados
  */
 export function calculateProductionMultiplier(purchasedUpgradeEffectValues: number[]): number {

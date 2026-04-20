@@ -1,16 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useAdsStore } from '@/store/useAdsStore';
+import { useI18n } from '@/i18n/useI18n';
 import { Button } from './Button';
 import './AdModal.css';
 
 export function AdModal() {
+  const { t } = useI18n();
   const isAdPlaying = useAdsStore(state => state.isAdPlaying);
   const resolveAd = useAdsStore(state => state.resolveAd);
   const [timeLeft, setTimeLeft] = useState(5);
 
+  const handleResolve = (success: boolean) => {
+    setTimeLeft(5);
+    resolveAd(success);
+  };
+
   useEffect(() => {
     if (isAdPlaying) {
-      setTimeLeft(5);
       const timer = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
@@ -30,23 +36,23 @@ export function AdModal() {
     <div className="tf-ad-overlay">
       <div className="tf-ad-content">
         <div className="tf-ad-indicator">AD</div>
-        <h2>Patrocinador da Corporação</h2>
-        <p>Aguarde o encerramento do bloco comercial para receber sua recompensa...</p>
-        
+        <h2>{t('ad.title')}</h2>
+        <p>{t('ad.wait')}</p>
+
         <div className="tf-ad-timer">
-          {timeLeft > 0 ? `00:0${timeLeft}` : 'Pronto!'}
+          {timeLeft > 0 ? `00:0${timeLeft}` : t('ad.ready')}
         </div>
 
         <div className="tf-ad-actions">
-           <Button variant="danger" onClick={() => resolveAd(false)}>
-             Fechar & Perder Recompensa
+           <Button variant="danger" onClick={() => handleResolve(false)}>
+             {t('ad.closeLose')}
            </Button>
            <Button 
              variant={timeLeft === 0 ? 'success' : 'secondary'} 
              disabled={timeLeft > 0}
-             onClick={() => resolveAd(true)}
+              onClick={() => handleResolve(true)}
            >
-             Resgatar Recompensa
+             {t('ad.claim')}
            </Button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useMarketStore } from '@/store/useMarketStore';
+import { useI18n } from '@/i18n/useI18n';
 import './NewsTicker.css';
 
 /**
@@ -6,19 +7,21 @@ import './NewsTicker.css';
  * Exibe o evento de mercado atual ou mensagens aleatórias de mercado.
  */
 export function NewsTicker() {
+  const { t } = useI18n();
   const activeEvent = useMarketStore(state => state.activeEvent);
 
   const getTickerContent = () => {
     if (activeEvent) {
       return (
         <div className={`tf-ticker-message active-${activeEvent.type}`}>
-          <span className="tf-ticker-label">BREAKING NEWS:</span> {activeEvent.title} - {activeEvent.description}
+          <span className="tf-ticker-label">{t('news.breaking')}</span>{' '}
+          {t(`event.${activeEvent.id}.title`, undefined, activeEvent.title)} - {t(`event.${activeEvent.id}.description`, undefined, activeEvent.description)}
         </div>
       );
     }
     return (
       <div className="tf-ticker-message">
-        <span className="tf-ticker-label">WALL STREET ADVISORY:</span> Mercado operando em estabilidade... Diversifique sua franquia hoje!
+        <span className="tf-ticker-label">{t('news.defaultLabel')}</span> {t('news.defaultMessage')}
       </div>
     );
   };

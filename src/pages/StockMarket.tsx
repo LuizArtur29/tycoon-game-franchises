@@ -4,10 +4,12 @@ import { useGameStore } from '@/store/useGameStore';
 import { Button } from '@/components/ui/Button';
 import { CurrencyDisplay } from '@/components/ui/CurrencyDisplay';
 import { audioEngine } from '@/engine/audioEngine';
+import { useI18n } from '@/i18n/useI18n';
 import Decimal from 'break_infinity.js';
 import './StockMarket.css';
 
 export function StockMarket() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { stocks, buyStock, sellStock, getOwnedShares, playerPortfolio } = useMarketStore();
   const { money, addMoney } = useGameStore();
@@ -37,10 +39,10 @@ export function StockMarket() {
   return (
     <div className="tf-stock-page">
       <header className="tf-stock-header">
-        <Button variant="secondary" onClick={() => navigate('/')}>⬅ VOLTAR</Button>
-        <h1>Bolsa de Valores (Sertão Exchange)</h1>
+        <Button variant="secondary" onClick={() => navigate('/')}>⬅ {t('stocks.back')}</Button>
+        <h1>{t('stocks.title')}</h1>
         <div className="tf-stock-money">
-          Saldo Disponível: <CurrencyDisplay value={currentMoney} size="md" />
+          {t('stocks.balance')} <CurrencyDisplay value={currentMoney} size="md" />
         </div>
       </header>
 
@@ -70,10 +72,10 @@ export function StockMarket() {
                 </div>
 
                 <div className="tf-stock-portfolio">
-                  <span>Suas Ações: <strong>{owned}</strong></span>
+                  <span>{t('stocks.yourShares')} <strong>{owned}</strong></span>
                   {owned > 0 && (
                     <span className={profitLoss >= 0 ? 'success-text' : 'danger-text'}>
-                      P/L: ${profitLoss.toFixed(2)}
+                      {t('stocks.pl')} ${profitLoss.toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -85,7 +87,7 @@ export function StockMarket() {
                     disabled={currentMoney.lt(stock.currentPrice)}
                     onClick={() => handleBuy(stock.id, stock.currentPrice)}
                   >
-                    COMPRAR
+                    {t('stocks.buy')}
                   </Button>
                   <Button 
                     variant="danger" 
@@ -93,7 +95,7 @@ export function StockMarket() {
                     disabled={owned <= 0}
                     onClick={() => handleSell(stock.id, stock.currentPrice)}
                   >
-                    VENDER
+                    {t('stocks.sell')}
                   </Button>
                 </div>
               </div>
@@ -103,7 +105,7 @@ export function StockMarket() {
       </div>
       
       <div className="tf-stock-disclaimer">
-        ⚠️ Investimentos em renda variável podem resultar em perda de capital. O preço das ações oscila conforme a volatilidade do mercado.
+        ⚠️ {t('stocks.disclaimer')}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { BALANCE } from '@/data/balancing';
+import { crazyGamesService } from '@/services/crazyGamesService';
 
 interface ActiveBoost {
   type: string;
@@ -16,7 +17,7 @@ interface AdsStoreState {
   getActiveBoostMultiplier: () => number;
   cleanExpiredBoosts: () => void;
 
-  // Placeholder hooks for future SDK
+  // In-game modal fallback for environments without SDK
   isAdPlaying: boolean;
   adPromiseResolver: ((success: boolean) => void) | null;
   showRewardedAd: (type: string) => Promise<boolean>;
@@ -72,10 +73,13 @@ export const useAdsStore = create<AdsStoreState>()(
         }
       },
 
-      // ========== PLACEHOLDER AD SDK ==========
+      // ========== REWARDED AD FLOW ==========
       showRewardedAd: async (_type: string) => {
         // Bloqueia se já tiver tocando um AD
         if (get().isAdPlaying) return false;
+
+        const sdkResult = await crazyGamesService.requestRewardedAd();
+        if (sdkResult !== null) return sdkResult;
 
         console.log(`[AdService] showRewardedAd('${_type}') - Solicitando abertura do Modal falso`);
         

@@ -295,6 +295,33 @@
   transform: scale(0.98);
 }
 
+.sp-sell-btn {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(127, 29, 29, 0.3);
+  color: #fecaca;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sp-sell-btn:hover {
+  background: rgba(153, 27, 27, 0.45);
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.sp-sell-btn:active {
+  transform: scale(0.98);
+}
+
 .sp-manager-section {
   padding: 16px;
   background: rgba(255, 255, 255, 0.03);
@@ -335,3 +362,37 @@
   color: #34d399;
   font-size: 0.8rem;
 }
+
+.sp-sell-confirm-text {
+  margin: 0;
+  color: #78350f;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.sp-sell-confirm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.sp-sell-confirm-btn {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sp-sell-confirm-btn.cancel {
+  background: #fde68a;
+  color: #78350f;
+}
+
+.sp-sell-confirm-btn.confirm {
+  background: #ef4444;
+  color: #fff;
+}
+

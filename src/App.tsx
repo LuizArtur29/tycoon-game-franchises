@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainGame } from './pages/MainGame'
 import { useGameLoop } from './hooks/useGameLoop'
 import { useAutoSave } from './hooks/useAutoSave'
@@ -37,7 +37,7 @@ function App() {
         />
       )}
 
-      <BrowserRouter>
+      <HashRouter>
         <AdModal />
         <Routes>
           <Route path="/" element={<MainGame />} />
@@ -48,7 +48,7 @@ function App() {
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </>
   )
 }

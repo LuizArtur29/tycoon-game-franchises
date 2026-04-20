@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { CurrencyDisplay } from '../ui/CurrencyDisplay';
 import { useAdsStore } from '@/store/useAdsStore';
 import { formatTime } from '@/engine/utils';
+import { useI18n } from '@/i18n/useI18n';
 import type { OfflineEarnings } from '@/types';
 import './OfflineModal.css';
 
@@ -14,6 +15,7 @@ interface OfflineModalProps {
 }
 
 export function OfflineModal({ earnings, onClose }: OfflineModalProps) {
+  const { t } = useI18n();
   const addMoney = useGameStore(state => state.addMoney);
   const showRewardedAd = useAdsStore(state => state.showRewardedAd);
   const [isProcessingAd, setIsProcessingAd] = useState(false);
@@ -32,8 +34,7 @@ export function OfflineModal({ earnings, onClose }: OfflineModalProps) {
       addMoney(earnings.doubleEarnings);
       onClose();
     } else {
-      // Falhou ad, avisa e não fecha
-      alert('Não foi possível carregar o anúncio. Tente novamente mais tarde.');
+      alert(t('offline.adError'));
     }
   };
 
@@ -41,20 +42,19 @@ export function OfflineModal({ earnings, onClose }: OfflineModalProps) {
     <Modal
       isOpen={true}
       onClose={handleClaimNormal} // Se fechar, só ganha normal
-      title="Você voltou!"
+      title={t('offline.title')}
       disableBackdropClick
     >
       <div className="tf-offline-content">
         <div className="tf-offline-icon">😴</div>
         
         <p className="tf-offline-text">
-          Enquanto você esteve fora por <strong>{formatTime(earnings.secondsAway)}</strong>, 
-          suas franquias continuaram trabalhando...
+          {t('offline.message', { time: formatTime(earnings.secondsAway) })}
         </p>
         
         {earnings.cappedAtMax && (
           <div className="tf-offline-warning">
-            Seus gerentes ficaram cansados e pararam de produzir! O tempo máximo offline é de 24 horas.
+            {t('offline.capWarning')}
           </div>
         )}
 
@@ -70,9 +70,9 @@ export function OfflineModal({ earnings, onClose }: OfflineModalProps) {
             onClick={handleClaimDouble}
             disabled={isProcessingAd}
           >
-            {isProcessingAd ? 'CARREGANDO...' : 'ASSISTIR AD PARA DOBRAR! 📺'}
+            {isProcessingAd ? t('offline.loading') : t('offline.double')}
             <br/>
-            <span style={{fontSize: '0.8rem'}}>Total: {earnings.doubleEarnings.toExponential(2)}</span>
+            <span style={{fontSize: '0.8rem'}}>{t('offline.total', { amount: earnings.doubleEarnings.toExponential(2) })}</span>
           </Button>
 
           <Button 
@@ -82,7 +82,7 @@ export function OfflineModal({ earnings, onClose }: OfflineModalProps) {
             disabled={isProcessingAd}
             className="tf-offline-normal-btn"
           >
-            Coletar Normal
+            {t('offline.normal')}
           </Button>
         </div>
       </div>

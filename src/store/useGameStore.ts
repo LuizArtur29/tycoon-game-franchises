@@ -9,6 +9,7 @@ import { BALANCE } from '@/data/balancing';
 import {
   calculateTotalProfitPerSecond,
   calculateStoreCost,
+  calculateStoreSellValue,
 } from '@/engine/profitCalculator';
 import { generateId } from '@/engine/utils';
 import { useStaffStore } from '@/store/useStaffStore';
@@ -134,6 +135,7 @@ interface GameStoreState {
   click: () => void;
   buyStore: (definitionId: string, slotIndex?: number) => boolean;
   upgradeStore: (storeId: string) => boolean;
+  sellStore: (storeId: string) => boolean;
   buyUpgrade: (upgradeId: string) => boolean;
   unlockRegion: (regionId: string) => boolean;
   changeRegion: (regionId: string) => void;
@@ -314,6 +316,40 @@ export const useGameStore = create<GameStoreState>()(
         return true;
       },
 
+      // ========== SELL STORE ==========
+      sellStore: (storeId: string) => {
+        const state = get();
+        const storeIndex = state.stores.findIndex(s => s.id === storeId);
+        if (storeIndex === -1) return false;
+
+        const store = state.stores[storeIndex];
+        const saleValue = calculateStoreSellValue(
+          store.definitionId,
+          store.level,
+          BALANCE.STORE_SELL_REFUND_RATE
+        );
+        const currentMoney = deserializeDecimal(state.money);
+
+        const updatedStores = state.stores.filter(s => s.id !== storeId);
+
+        set({
+          money: serializeDecimal(currentMoney.plus(saleValue)),
+          stores: updatedStores,
+        });
+
+        // Clear executives assigned to the sold store.
+        useStaffStore.setState(staffState => ({
+          executives: staffState.executives.map(executive =>
+            executive.assignedStoreId === storeId
+              ? { ...executive, assignedStoreId: null }
+              : executive
+          ),
+        }));
+
+        get().recalculateMoneyPerSecond();
+        return true;
+      },
+
       // ========== BUY UPGRADE ==========
       buyUpgrade: (upgradeId: string) => {
         const state = get();
@@ -336,7 +372,7 @@ export const useGameStore = create<GameStoreState>()(
         };
 
         // Aplica efeito
-        let newState: Partial<GameStoreState> = {
+        const newState: Partial<GameStoreState> = {
           money: serializeDecimal(currentMoney.minus(cost)),
           upgrades: updatedUpgrades,
         };

@@ -58,7 +58,7 @@ export const ApiService = {
              { rank: 1, username: "MagnataDoSertao", totalCompanyValue: new Decimal('1e18').toString() },
              { rank: 2, username: "DonaMartaBurgers", totalCompanyValue: new Decimal('5e15').toString() },
              { rank: 3, username: "CoronelZe", totalCompanyValue: new Decimal('2e14').toString() },
-             { rank: 4, username: "Você", totalCompanyValue: "0" },
+             { rank: 4, username: "__player__", totalCompanyValue: "0" },
              { rank: 5, username: "StartupFariaLima", totalCompanyValue: new Decimal('9e9').toString() },
            ]);
          }, 1000);

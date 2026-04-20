@@ -4,10 +4,12 @@ import { usePrestigeStore } from '@/store/usePrestigeStore';
 import { Button } from '@/components/ui/Button';
 import { calculatePrestigeReward } from '@/engine/prestigeEngine';
 import { audioEngine } from '@/engine/audioEngine';
+import { useI18n } from '@/i18n/useI18n';
 import Decimal from 'break_infinity.js';
 import './PrestigePage.css';
 
 export function PrestigePage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   // We use the total money ever earned across all playthroughs for the calculation
   const totalMoneyEarnedStr = useGameStore(state => state.totalMoneyEarned);
@@ -24,7 +26,7 @@ export function PrestigePage() {
 
   const handlePrestige = () => {
     if (canPrestige) {
-      if (confirm('Vender a corporação fará você perder o dinheiro atual, lojas e upgrades em troca das Ações de Ouro permanentes. Deseja prosseguir na IPO?')) {
+      if (confirm(t('prestige.confirm'))) {
         prestigeState.executePrestige(totalLifetimeEarned);
         resetForPrestige();
         audioEngine.playSFX('prestige');
@@ -37,38 +39,38 @@ export function PrestigePage() {
   return (
     <div className="tf-prestige-page">
       <header className="tf-prestige-header">
-        <Button variant="secondary" onClick={() => navigate('/')}>⬅ VOLTAR</Button>
-        <h1>Bolsa de Valores (IPO)</h1>
+        <Button variant="secondary" onClick={() => navigate('/')}>⬅ {t('prestige.back')}</Button>
+        <h1>{t('prestige.title')}</h1>
         <div></div>
       </header>
 
       <div className="tf-prestige-content">
         <div className="tf-prestige-panel">
           <div className="tf-prestige-icon">📈</div>
-          <h2>Oferta Pública Inicial</h2>
-          <p>Seus investidores de Wall Street estão acompanhando seus ganhos.</p>
+          <h2>{t('prestige.heading')}</h2>
+          <p>{t('prestige.subtitle')}</p>
 
           <div className="tf-prestige-stats">
             <div className="stat-box">
-              <span className="stat-label">Ações de Ouro Atuais</span>
+              <span className="stat-label">{t('prestige.currentShares')}</span>
               <span className="stat-value">{currentShares}</span>
             </div>
             <div className="stat-box">
-              <span className="stat-label">Bônus Global Fixo</span>
+              <span className="stat-label">{t('prestige.fixedBonus')}</span>
               <span className="stat-value">+{currentMultiplier.toFixed(0)}%</span>
             </div>
           </div>
 
           <div className="tf-prestige-reward-box">
-             <h3>Se você vender a Franquia hoje:</h3>
+             <h3>{t('prestige.sellToday')}</h3>
              {canPrestige ? (
                <>
-                 <div className="reward-big-number">+{newSharesGained} Ações</div>
-                 <p className="reward-sub">Você passará de {currentShares} para {currentShares + newSharesGained} ações de ouro!</p>
+                  <div className="reward-big-number">{t('prestige.sharesGain', { count: newSharesGained })}</div>
+                  <p className="reward-sub">{t('prestige.sharesAfter', { current: currentShares, next: currentShares + newSharesGained })}</p>
                </>
              ) : (
                <div className="reward-warning">
-                 Sua corporação ainda não vale o mínimo para abrir o capital em Wall Street.
+                  {t('prestige.minValue')}
                </div>
              )}
           </div>
@@ -81,7 +83,7 @@ export function PrestigePage() {
             onClick={handlePrestige}
             style={{ marginTop: '20px' }}
           >
-            VENDER EMPRESA AGORA
+            {t('prestige.sellNow')}
           </Button>
 
         </div>

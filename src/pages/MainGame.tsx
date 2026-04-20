@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '@/store/useGameStore';
 import { CurrencyDisplay } from '@/components/ui/CurrencyDisplay';
 import { NewsTicker } from '@/components/ui/NewsTicker';
@@ -8,12 +9,16 @@ import { AngelInvestor } from '@/components/game/AngelInvestor';
 import { StatsModal } from '@/components/game/StatsModal';
 import { UpgradePanel } from '@/components/game/UpgradePanel';
 import { Modal } from '@/components/ui/Modal';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { audioEngine } from '@/engine/audioEngine';
 import Decimal from 'break_infinity.js';
 import type { GameStore } from '@/types';
+import { useI18n } from '@/i18n/useI18n';
 import './MainGame.css';
 
 export function MainGame() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
   const moneyStr = useGameStore(state => state.money);
   const money = new Decimal(moneyStr);
   const _moneyPerSecond = useGameStore(state => state._moneyPerSecond);
@@ -80,58 +85,59 @@ export function MainGame() {
       {/* HEADER */}
       <header className="tf-header">
         <div className="tf-header-logo">
-          🍔 Tycoon Franchises
+          🍔 {t('app.name')}
         </div>
         <div className="tf-header-nav">
           <button
              className="tf-nav-btn"
              onClick={toggleMute}
-             title={isMuted ? "Ativar Som" : "Mudar p/ Mudo"}
+             title={isMuted ? t('main.sound.enable') : t('main.sound.mute')}
           >
              {isMuted ? '🔇' : '🔊'}
           </button>
+          <LanguageSwitcher />
           <button
              className="tf-nav-btn"
              disabled
-             title="Mapa único ativo: Megalopolis"
+             title={t('main.map.activeTitle')}
           >
-             🗺️ Megalopolis
+             🗺️ {t('main.map.button')}
           </button>
           <button
              className="tf-nav-btn"
-             onClick={() => window.location.href = '/stocks'}
+             onClick={() => navigate('/stocks')}
           >
-             💹 Investimentos
+             💹 {t('main.nav.investments')}
           </button>
           <button
              className="tf-nav-btn"
              onClick={() => setShowStats(true)}
           >
-             📊 Stats
+             📊 {t('main.nav.stats')}
           </button>
           <button
              className="tf-nav-btn"
              onClick={() => setShowUpgrades(!showUpgrades)}
           >
-             🔧 Upgrades
+             🔧 {t('main.nav.upgrades')}
           </button>
           <button
              className="tf-nav-btn"
-             onClick={() => window.location.href = '/staff'}
+             onClick={() => navigate('/staff')}
           >
-             👥 RH
+             👥 {t('main.nav.hr')}
           </button>
           <button
              className="tf-nav-btn tf-nav-prestige"
-             onClick={() => window.location.href = '/prestige'}
+             onClick={() => navigate('/prestige')}
           >
-             📈 IPO
+             📈 {t('main.nav.ipo')}
           </button>
           <button
              className="tf-nav-btn"
-             onClick={() => window.location.href = '/leaderboard'}
+             onClick={() => navigate('/leaderboard')}
           >
-             🌍 Rankings
+             🌍 {t('main.nav.rankings')}
           </button>
         </div>
         <div className="tf-header-stats">
@@ -139,7 +145,7 @@ export function MainGame() {
              <CurrencyDisplay value={money} size="lg" />
            </div>
            <div className="tf-income-container">
-             <CurrencyDisplay value={moneyPerSecond} size="sm" icon="📈" showPlus /> / seg
+             <CurrencyDisplay value={moneyPerSecond} size="sm" icon="📈" showPlus /> {t('main.income.perSecond')}
            </div>
         </div>
       </header>
@@ -162,8 +168,8 @@ export function MainGame() {
               onClick={handleManualClick}
             >
               <span className="tf-big-click-icon">🏪</span>
-              <h1>VENDER!</h1>
-              <p>+{clickPower.toExponential(0)} / clique</p>
+              <h1>{t('main.click.sell')}</h1>
+              <p>+{clickPower.toExponential(0)} {t('main.click.perClick')}</p>
 
               {clickEffects.map(effect => (
                 <span
@@ -182,7 +188,7 @@ export function MainGame() {
       <Modal
         isOpen={showUpgrades}
         onClose={() => setShowUpgrades(false)}
-        title="Upgrades"
+        title={t('main.modal.upgrades')}
         contentClassName="tf-modal-content-upgrades"
       >
         <div className="tf-upgrades-modal-content">

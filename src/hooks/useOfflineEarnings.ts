@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { calculateOfflineEarnings } from '@/engine/offlineCalculator';
 import Decimal from 'break_infinity.js';
@@ -8,13 +8,14 @@ import type { OfflineEarnings } from '@/types';
  * Hook que calcula ganhos offline ao carregar o aplicativo
  */
 export function useOfflineEarnings(onEarningsCalculated: (earnings: OfflineEarnings) => void) {
-  const [calculated, setCalculated] = useState(false);
+  const hasCalculatedRef = useRef(false);
   const lastTickTimestamp = useGameStore(state => state.lastTickTimestamp);
   const _moneyPerSecond = useGameStore(state => state._moneyPerSecond);
-  const moneyPerSecond = new Decimal(_moneyPerSecond);
 
   useEffect(() => {
-    if (calculated) return;
+    if (hasCalculatedRef.current) return;
+
+    const moneyPerSecond = new Decimal(_moneyPerSecond);
 
     const earnings = calculateOfflineEarnings(lastTickTimestamp, moneyPerSecond);
 
@@ -23,8 +24,6 @@ export function useOfflineEarnings(onEarningsCalculated: (earnings: OfflineEarni
       onEarningsCalculated(earnings);
     }
 
-    setCalculated(true);
-  }, [calculated, lastTickTimestamp, moneyPerSecond, onEarningsCalculated]);
-
-  return calculated;
+    hasCalculatedRef.current = true;
+  }, [lastTickTimestamp, _moneyPerSecond, onEarningsCalculated]);
 }

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Application, Graphics, Container, FederatedPointerEvent, Sprite, Assets, Texture } from 'pixi.js';
 import { useGameStore } from '@/store/useGameStore';
 import { STORE_DEFINITIONS } from '@/data/stores';
-import { BUILDING_COLORS } from '@/data/stores';
 import { REGIONS } from '@/data/regions';
 import mapJson from '@/data/mapa.json';
 import { MAP_LOTES_SLOT_POSITIONS, MAP_LOTES_TILE_KEY_SET, MAP_LOTES_TOTAL_SLOTS, MAP_LOTES_SLOT_SET } from '@/data/mapSlots';
+import { useI18n } from '@/i18n/useI18n';
 
 import lojaBrancaImg from '@/assets/loja_branca.png';
 import lojaBrancaFrenteImg from '@/assets/loja_branca_frente.png';
@@ -185,80 +185,6 @@ function calculateInitialPan(layout: MapLayout): PanOffset {
 }
 
 // ============================================
-// VECTOR BUILDING DRAWING
-// ============================================
-
-function hexToNum(hex: string): number {
-  return parseInt(hex.replace('#', ''), 16);
-}
-
-function drawIsometricBuilding(
-  g: Graphics, x: number, y: number,
-  defId: string, level: number
-) {
-  const colors = BUILDING_COLORS[defId] || { primary: '#607D8B', secondary: '#37474F', roof: '#90A4AE' };
-  const primary = hexToNum(colors.primary);
-  const secondary = hexToNum(colors.secondary);
-  const roof = hexToNum(colors.roof);
-
-  const baseW = TILE_WIDTH * 0.6;
-  const baseH = TILE_HEIGHT * 0.35;
-  const buildingHeight = 28 + Math.min(level, 20) * 3;
-
-  g.moveTo(x - baseW / 2, y);
-  g.lineTo(x, y + baseH / 2);
-  g.lineTo(x, y + baseH / 2 - buildingHeight);
-  g.lineTo(x - baseW / 2, y - buildingHeight);
-  g.closePath();
-  g.fill({ color: secondary, alpha: 0.95 });
-
-  g.moveTo(x + baseW / 2, y);
-  g.lineTo(x, y + baseH / 2);
-  g.lineTo(x, y + baseH / 2 - buildingHeight);
-  g.lineTo(x + baseW / 2, y - buildingHeight);
-  g.closePath();
-  g.fill({ color: primary, alpha: 0.95 });
-
-  g.moveTo(x, y - buildingHeight - baseH / 2);
-  g.lineTo(x + baseW / 2, y - buildingHeight);
-  g.lineTo(x, y - buildingHeight + baseH / 2);
-  g.lineTo(x - baseW / 2, y - buildingHeight);
-  g.closePath();
-  g.fill({ color: roof, alpha: 0.95 });
-
-  const windowRows = Math.min(Math.floor(buildingHeight / 14), 5);
-  for (let wr = 0; wr < windowRows; wr++) {
-    const wy = y - 8 - wr * 14;
-    const wx = x - baseW * 0.28;
-    g.rect(wx - 3, wy - 4, 6, 5);
-    g.fill({ color: 0xffeb3b, alpha: 0.7 });
-    g.rect(wx + 5, wy - 4, 6, 5);
-    g.fill({ color: 0xfff9c4, alpha: 0.5 });
-  }
-
-  for (let wr = 0; wr < windowRows; wr++) {
-    const wy = y - 8 - wr * 14;
-    const wx = x + baseW * 0.15;
-    g.rect(wx - 3, wy - 4, 6, 5);
-    g.fill({ color: 0xffeb3b, alpha: 0.6 });
-    g.rect(wx + 5, wy - 4, 6, 5);
-    g.fill({ color: 0xfff9c4, alpha: 0.4 });
-  }
-
-  g.rect(x + 2, y - 10, 8, 10);
-  g.fill({ color: secondary, alpha: 0.8 });
-
-  g.moveTo(x - baseW / 2, y);
-  g.lineTo(x, y + baseH / 2);
-  g.lineTo(x + baseW / 2, y);
-  g.lineTo(x + baseW / 2, y - buildingHeight);
-  g.lineTo(x, y - buildingHeight - baseH / 2);
-  g.lineTo(x - baseW / 2, y - buildingHeight);
-  g.lineTo(x - baseW / 2, y);
-  g.stroke({ color: 0x000000, width: 1.2, alpha: 0.25 });
-}
-
-// ============================================
 // GROUND DRAWING
 // ============================================
 
@@ -271,16 +197,7 @@ function drawIsoDiamond(g: Graphics, x: number, y: number, w: number, h: number,
   g.fill({ color, alpha });
 }
 
-function drawGroundContact(g: Graphics, x: number, groundY: number, footprintScale = 1, alpha = 0.2) {
-  drawIsoDiamond(g, x, groundY + 1, TILE_WIDTH * 0.38 * footprintScale, TILE_HEIGHT * 0.2, 0x000000, alpha * 0.55);
-  drawIsoDiamond(g, x, groundY + 5, TILE_WIDTH * 0.58 * footprintScale, TILE_HEIGHT * 0.34, 0x000000, alpha * 0.35);
-}
-
-function drawGround(
-  g: Graphics, centerX: number, centerY: number,
-  cols: number, rows: number,
-  tileKinds: TileKind[][], slotLookup: Map<string, number>
-) {
+function drawGround() {
   // FUNÇÃO VAZIA!
   // O PixiJS não vai desenhar mais nenhum losango base transparente.
   // A lógica de cliques continuará funcionando graças à matemática.
@@ -295,6 +212,7 @@ interface IsometricMapProps {
 }
 
 export function IsometricMap({ onSlotClick }: IsometricMapProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{
     visible: boolean; x: number; y: number;
@@ -323,23 +241,18 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
     s => s.region === currentRegion && MAP_LOTES_SLOT_SET.has(s.slotIndex)
   ).length;
 
-  const layoutRef = useRef<MapLayout | null>(null);
-  const layoutRegionRef = useRef('');
-  if (layoutRegionRef.current !== currentRegion) {
-    layoutRef.current = generateMapLayout();
-    layoutRegionRef.current = currentRegion;
-  }
-  const layout = layoutRef.current!;
+  const layout = useMemo(() => generateMapLayout(), []);
 
   useEffect(() => {
     let isCancelled = false; // A nossa Trava de Segurança
     const app = new Application();
+    const mountNode = containerRef.current;
     let handleWheel: ((e: WheelEvent) => void) | null = null;
 
     const setupPixi = async () => {
-      if (!containerRef.current) return;
-      const width = containerRef.current.clientWidth || 800;
-      const height = containerRef.current.clientHeight || 600;
+      if (!mountNode) return;
+      const width = mountNode.clientWidth || 800;
+      const height = mountNode.clientHeight || 600;
 
       await app.init({
         width, height, backgroundAlpha: 0, antialias: true,
@@ -353,7 +266,7 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
       }
 
       // Injeta o canvas de forma nativa e segura
-      containerRef.current.appendChild(app.canvas as HTMLCanvasElement);
+      mountNode.appendChild(app.canvas as HTMLCanvasElement);
 
       const worldContainer = new Container();
       app.stage.addChild(worldContainer);
@@ -444,7 +357,7 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
 
         const regionStores = getRegionStores();
 
-        drawGround(gfx, centerX, centerY, layout.cols, layout.rows, layout.tileKinds, slotLookup);
+        drawGround();
 
         const items: { c: number; r: number; depth: number; slotIdx: number }[] = [];
         for (let r = 0; r < layout.rows; r++) {
@@ -466,15 +379,17 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
             let anim = buildAnimRef.current.get(slotIdx) ?? 1;
             if (anim < 1) { anim = Math.min(1, anim + 0.03); buildAnimRef.current.set(slotIdx, anim); }
 
-            let sprite = buildingSprites.get(slotIdx);
-            if (!sprite) {
+            const existingSprite = buildingSprites.get(slotIdx);
+            if (!existingSprite) {
               const storeTexture = getDeterministicTextureForSlot(slotIdx);
               if (!storeTexture) continue;
-              sprite = new Sprite(storeTexture);
+              const sprite = new Sprite(storeTexture);
               sprite.anchor.set(0.5, 1);
               buildingLayer.addChild(sprite);
               buildingSprites.set(slotIdx, sprite);
             }
+
+            const sprite = buildingSprites.get(slotIdx);
 
             if (sprite) {
               sprite.visible = true;
@@ -485,7 +400,7 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
             }
 
           } else {
-            let sprite = buildingSprites.get(slotIdx);
+            const sprite = buildingSprites.get(slotIdx);
             if (sprite) sprite.visible = false;
           }
 
@@ -520,9 +435,16 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
             const st = getRegionStores().find(s => s.slotIndex === hoveredSlot);
             if (st) {
               const def = STORE_DEFINITIONS.find((d: StoreDefinition) => d.id === st.definitionId);
-              if (def) setTooltip({ visible: true, x: e.global.x, y: e.global.y, name: def.name, level: st.level, detail: def.description });
+              if (def) setTooltip({
+                visible: true,
+                x: e.global.x,
+                y: e.global.y,
+                name: t(`store.${def.id}.name`, undefined, def.name),
+                level: st.level,
+                detail: t(`store.${def.id}.description`, undefined, def.description),
+              });
             } else {
-              setTooltip({ visible: true, x: e.global.x, y: e.global.y, name: 'Lote Vazio', level: 0, detail: 'Clique para construir!' });
+              setTooltip({ visible: true, x: e.global.x, y: e.global.y, name: t('map.tooltip.empty'), level: 0, detail: t('map.tooltip.build') });
             }
           } else {
             hoveredSlot = -1;
@@ -566,7 +488,7 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
         zoomRef.current = clampZoom(zoomRef.current + delta);
       };
 
-      containerRef.current?.addEventListener('wheel', handleWheel, { passive: false });
+      mountNode.addEventListener('wheel', handleWheel, { passive: false });
       app.ticker.add(() => redraw());
     };
 
@@ -575,20 +497,20 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
     // Limpeza super agressiva e garantida
     return () => {
       isCancelled = true; // Impede promises pela metade de continuarem
-      if (handleWheel && containerRef.current) {
-        containerRef.current.removeEventListener('wheel', handleWheel);
+      if (handleWheel && mountNode) {
+        mountNode.removeEventListener('wheel', handleWheel);
       }
       try {
         // Arranca o canvas do HTML
         if (app.canvas && app.canvas.parentNode) {
           app.canvas.parentNode.removeChild(app.canvas);
         }
-        app.destroy(true, { children: true, texture: true, baseTexture: true });
-      } catch (e) {
+        app.destroy(true, { children: true, texture: true });
+      } catch {
         // fail silently
       }
     };
-  }, [currentRegion, layout, getRegionStores, onSlotClick]);
+  }, [currentRegion, layout, getRegionStores, onSlotClick, t]);
 
   const handleZoom = (d: number) => {
     zoomRef.current = clampZoom(zoomRef.current + d * BUTTON_ZOOM_STEP);
@@ -597,8 +519,8 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
   return (
     <div className="iso-map-wrapper" ref={containerRef}>
       <div className="iso-map-hud">
-        <div className="iso-hud-pill"><span className="hud-emoji">📍</span>{region?.name || 'Região'}</div>
-        <div className="iso-hud-pill"><span className="hud-emoji">🏢</span>{usedValidSlots}/{totalSlots} lotes</div>
+        <div className="iso-hud-pill"><span className="hud-emoji">📍</span>{region?.name || t('map.regionFallback')}</div>
+        <div className="iso-hud-pill"><span className="hud-emoji">🏢</span>{t('map.lots', { used: usedValidSlots, total: totalSlots })}</div>
       </div>
       <div className="iso-zoom-controls">
         <button className="iso-zoom-btn" onClick={() => handleZoom(1)}>+</button>
@@ -607,7 +529,7 @@ export function IsometricMap({ onSlotClick }: IsometricMapProps) {
       <div className={`iso-tooltip ${tooltip.visible ? 'visible' : ''}`} style={{ left: tooltip.x, top: tooltip.y }}>
         <div className="iso-tooltip-name">
           {tooltip.name}
-          {tooltip.level > 0 && <span className="iso-tooltip-level">Nv. {tooltip.level}</span>}
+          {tooltip.level > 0 && <span className="iso-tooltip-level">{t('map.tooltip.level', { level: tooltip.level })}</span>}
         </div>
         <div className="iso-tooltip-detail">{tooltip.detail}</div>
       </div>

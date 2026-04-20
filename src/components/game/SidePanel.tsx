@@ -1,29 +1,27 @@
+import { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useStaffStore } from '@/store/useStaffStore';
 import { STORE_DEFINITIONS } from '@/data/stores';
-import { calculateStoreCost, calculateStoreProfit } from '@/engine/profitCalculator';
+import { BALANCE } from '@/data/balancing';
+import { calculateStoreCost, calculateStoreProfit, calculateStoreSellValue } from '@/engine/profitCalculator';
 import { audioEngine } from '@/engine/audioEngine';
+import { formatMoney } from '@/engine/utils';
+import { useI18n } from '@/i18n/useI18n';
+import { Modal } from '@/components/ui/Modal';
 import Decimal from 'break_infinity.js';
 import type { GameStore } from '@/types';
 import './SidePanel.css';
 
-// ============================================
-// CURRENCY FORMATTER (inline para o painel)
-// ============================================
-function formatMoney(value: Decimal): string {
-  if (value.lt(1000)) return `R$ ${value.toFixed(0)}`;
-  if (value.lt(1e6)) return `R$ ${(value.toNumber() / 1000).toFixed(1)}K`;
-  if (value.lt(1e9)) return `R$ ${(value.toNumber() / 1e6).toFixed(2)}M`;
-  if (value.lt(1e12)) return `R$ ${(value.toNumber() / 1e9).toFixed(2)}B`;
-  return `R$ ${value.toExponential(2)}`;
-}
-
-function formatExecutiveBonus(type: 'profit' | 'cost_reduction' | 'click' | 'global', value: number): string {
+function formatExecutiveBonus(
+  type: 'profit' | 'cost_reduction' | 'click' | 'global',
+  value: number,
+  t: (key: string, params?: Record<string, string | number>, fallback?: string) => string,
+): string {
   const percent = (value * 100).toFixed(0);
-  if (type === 'cost_reduction') return `-${percent}% redução de custo`;
-  if (type === 'profit') return `+${percent}% lucro`;
-  if (type === 'click') return `+${percent}% clique`;
-  return `+${percent}% global`;
+  if (type === 'cost_reduction') return t('side.exec.cost', { percent });
+  if (type === 'profit') return t('side.exec.profit', { percent });
+  if (type === 'click') return t('side.exec.click', { percent });
+  return t('side.exec.global', { percent });
 }
 
 function isStoreUnlocked(
@@ -44,24 +42,23 @@ function isStoreUnlocked(
 }
 
 function getStoreRequirementText(
+  t: (key: string, params?: Record<string, string | number>, fallback?: string) => string,
   unlockCondition: { type: 'money' | 'stores' | 'region' | 'prestige' | 'none'; value: number; regionId?: string }
 ): string {
-  if (unlockCondition.type === 'stores') return `Requer ${unlockCondition.value} lojas compradas`;
-  if (unlockCondition.type === 'money') return `Requer caixa de R$ ${new Decimal(unlockCondition.value).toFixed(0)}`;
-  if (unlockCondition.type === 'region') return 'Requer região específica';
-  if (unlockCondition.type === 'prestige') return `Requer ${unlockCondition.value} IPO(s)`;
+  if (unlockCondition.type === 'stores') return t('side.reqStores', { count: unlockCondition.value });
+  if (unlockCondition.type === 'money') return t('side.reqMoney', { amount: formatMoney(new Decimal(unlockCondition.value)) });
+  if (unlockCondition.type === 'region') return t('side.reqRegion');
+  if (unlockCondition.type === 'prestige') return t('side.reqPrestige', { count: unlockCondition.value });
   return '';
 }
 
-// ============================================
-// BUY PANEL - Mostrado quando lote está vazio
-// ============================================
 interface BuyPanelProps {
   slotIndex: number;
   onClose: () => void;
 }
 
 function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
+  const { t } = useI18n();
   const currentRegion = useGameStore(s => s.currentRegion);
   const unlockedRegions = useGameStore(s => s.unlockedRegions);
   const stores = useGameStore(s => s.stores);
@@ -77,7 +74,6 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
     const success = buyStore(defId, slotIndex);
     if (success) {
       audioEngine.playSFX('purchase');
-      // Dispara confete
       window.dispatchEvent(new CustomEvent('spawn_confetti'));
       onClose();
     }
@@ -86,8 +82,8 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
   return (
     <div className="sp-buy-section">
       <div className="sp-buy-header">
-        <h3>🏗️ Construir no Lote #{slotIndex + 1}</h3>
-        <p>Escolha qual franquia construir aqui</p>
+        <h3>🏗️ {t('side.buildLot', { slot: slotIndex + 1 })}</h3>
+        <p>{t('side.chooseFranchise')}</p>
       </div>
 
       {regionDefs.map(def => {
@@ -95,7 +91,7 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
         const cost = calculateStoreCost(def.id, existingCount, 0);
         const unlocked = isStoreUnlocked(stores.length, money, currentRegion, unlockedRegions, def.unlockCondition);
         const canAfford = unlocked && money.gte(cost);
-        const requirementText = unlocked ? '' : getStoreRequirementText(def.unlockCondition);
+        const requirementText = unlocked ? '' : getStoreRequirementText(t, def.unlockCondition);
 
         return (
           <div
@@ -105,8 +101,10 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
           >
             <div className="sp-store-emoji">{def.emoji}</div>
             <div className="sp-store-info">
-              <div className="sp-store-name">{def.name}</div>
-              <div className="sp-store-desc">{unlocked ? def.description : requirementText}</div>
+              <div className="sp-store-name">{t(`store.${def.id}.name`, undefined, def.name)}</div>
+              <div className="sp-store-desc">
+                {unlocked ? t(`store.${def.id}.description`, undefined, def.description) : requirementText}
+              </div>
             </div>
             <div className={`sp-store-cost ${canAfford ? 'affordable' : ''}`}>
               {formatMoney(cost)}
@@ -118,16 +116,17 @@ function BuyStorePanel({ slotIndex, onClose }: BuyPanelProps) {
   );
 }
 
-// ============================================
-// MANAGE PANEL - Mostrado quando clica num prédio
-// ============================================
 interface ManagePanelProps {
   storeId: string;
+  onClose: () => void;
 }
 
-function ManageStorePanel({ storeId }: ManagePanelProps) {
+function ManageStorePanel({ storeId, onClose }: ManagePanelProps) {
+  const { t } = useI18n();
+  const [isSellConfirmOpen, setIsSellConfirmOpen] = useState(false);
   const store = useGameStore(s => s.stores.find(existingStore => existingStore.id === storeId) ?? null);
   const upgradeStore = useGameStore(s => s.upgradeStore);
+  const sellStore = useGameStore(s => s.sellStore);
   const moneyStr = useGameStore(s => s.money);
   const storeUpgradeCostReduction = useGameStore(s => s.storeUpgradeCostReduction);
   const money = new Decimal(moneyStr);
@@ -142,6 +141,7 @@ function ManageStorePanel({ storeId }: ManagePanelProps) {
   const upgradeCost = calculateStoreCost(store.definitionId, store.level, storeUpgradeCostReduction);
   const canAfford = money.gte(upgradeCost);
   const currentProfit = calculateStoreProfit(store, executives, productionMultiplier);
+  const sellValue = calculateStoreSellValue(store.definitionId, store.level, BALANCE.STORE_SELL_REFUND_RATE);
 
   const assignedExec = executives.find(e => e.assignedStoreId === store.id);
 
@@ -152,59 +152,93 @@ function ManageStorePanel({ storeId }: ManagePanelProps) {
     }
   };
 
+  const handleConfirmSell = () => {
+    const success = sellStore(store.id);
+    if (success) {
+      audioEngine.playSFX('unlock');
+      setIsSellConfirmOpen(false);
+      onClose();
+    }
+  };
+
   return (
     <div className="sp-manage-section">
-      {/* Hero */}
       <div className="sp-store-hero">
         <span className="sp-hero-emoji">{definition.emoji}</span>
-        <h3 className="sp-hero-name">{definition.name}</h3>
-        <span className="sp-hero-level-badge">Nível {store.level}</span>
+        <h3 className="sp-hero-name">{t(`store.${definition.id}.name`, undefined, definition.name)}</h3>
+        <span className="sp-hero-level-badge">{t('side.level', { level: store.level })}</span>
       </div>
 
-      {/* Stats */}
       <div className="sp-stat-row">
-        <span className="sp-stat-label">📈 Lucro/s</span>
+        <span className="sp-stat-label">📈 {t('side.profitPerSec')}</span>
         <span className="sp-stat-value money">{formatMoney(currentProfit)}</span>
       </div>
       <div className="sp-stat-row">
-        <span className="sp-stat-label">🏗️ Lote</span>
+        <span className="sp-stat-label">🏗️ {t('side.lot')}</span>
         <span className="sp-stat-value">#{store.slotIndex + 1}</span>
       </div>
+      <div className="sp-stat-row">
+        <span className="sp-stat-label">💸 {t('side.sellValue')}</span>
+        <span className="sp-stat-value money">{formatMoney(sellValue)}</span>
+      </div>
 
-      {/* Manager */}
       <div className="sp-manager-section">
-        <h4 className="sp-manager-title">👔 Executivo Designado</h4>
+        <h4 className="sp-manager-title">👔 {t('side.execAssigned')}</h4>
         {assignedExec ? (
           <div className="sp-manager-info">
             <span className="sp-manager-portrait">{assignedExec.portrait}</span>
             <div>
               <div className="sp-manager-name">{assignedExec.name}</div>
               <div className="sp-manager-bonus">
-                {formatExecutiveBonus(assignedExec.multiplier.type, assignedExec.multiplier.value)}
+                {formatExecutiveBonus(assignedExec.multiplier.type, assignedExec.multiplier.value, t)}
               </div>
             </div>
           </div>
         ) : (
-          <p className="sp-no-manager">Nenhum executivo designado. Vá ao RH!</p>
+          <p className="sp-no-manager">{t('side.noExec')}</p>
         )}
       </div>
 
-      {/* Upgrade Button */}
       <button
         className={`sp-upgrade-btn ${canAfford ? 'can-buy' : 'cant-buy'}`}
         onClick={handleUpgrade}
         disabled={!canAfford}
       >
-        ⬆️ Upgrade → Nível {store.level + 1}
+        ⬆️ {t('side.upgradeTo', { level: store.level + 1 })}
         <span>{formatMoney(upgradeCost)}</span>
       </button>
+
+      <button className="sp-sell-btn" onClick={() => setIsSellConfirmOpen(true)}>
+        🧾 {t('side.sell')}
+        <span>+{formatMoney(sellValue)}</span>
+      </button>
+
+      <Modal
+        isOpen={isSellConfirmOpen}
+        onClose={() => setIsSellConfirmOpen(false)}
+        title={t('side.sellConfirmTitle')}
+      >
+        <p className="sp-sell-confirm-text">
+          {t('side.sellConfirmBody', { amount: formatMoney(sellValue) }, t('side.sellConfirm'))}
+        </p>
+        <div className="sp-sell-confirm-actions">
+          <button
+            className="sp-sell-confirm-btn cancel"
+            onClick={() => setIsSellConfirmOpen(false)}
+          >
+            {t('side.sellConfirmCancel')}
+          </button>
+          <button
+            className="sp-sell-confirm-btn confirm"
+            onClick={handleConfirmSell}
+          >
+            {t('side.sellConfirmAccept')}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
-
-// ============================================
-// SIDE PANEL - Container Principal
-// ============================================
 
 interface SidePanelProps {
   isOpen: boolean;
@@ -214,6 +248,8 @@ interface SidePanelProps {
 }
 
 export function SidePanel({ isOpen, slotIndex, store, onClose }: SidePanelProps) {
+  const { t } = useI18n();
+
   return (
     <div className={`side-panel-overlay ${isOpen ? 'open' : ''}`}>
       <div className="side-panel-backdrop" onClick={onClose} />
@@ -223,13 +259,13 @@ export function SidePanel({ isOpen, slotIndex, store, onClose }: SidePanelProps)
             <span className="sp-title-emoji">
               {store ? (STORE_DEFINITIONS.find(d => d.id === store.definitionId)?.emoji || '🏢') : '🏗️'}
             </span>
-            {store ? 'Gerenciar Loja' : 'Novo Empreendimento'}
+            {store ? t('side.manageStore') : t('side.newBusiness')}
           </div>
           <button className="sp-close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="sp-content">
           {store ? (
-            <ManageStorePanel storeId={store.id} />
+            <ManageStorePanel storeId={store.id} onClose={onClose} />
           ) : (
             <BuyStorePanel slotIndex={slotIndex} onClose={onClose} />
           )}

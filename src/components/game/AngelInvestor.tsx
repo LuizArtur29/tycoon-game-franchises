@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useAdsStore } from '@/store/useAdsStore';
+import { useI18n } from '@/i18n/useI18n';
 import Decimal from 'break_infinity.js';
 import './AngelInvestor.css';
 
 export function AngelInvestor() {
+  const { t } = useI18n();
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: '50%' });
   const [key, setKey] = useState(0); // para resetar a animacao
@@ -38,7 +40,7 @@ export function AngelInvestor() {
       // Evitar dar 0 se ele acabou de iniciar. Mínimo = dinheiro para comprar a primeira loja.
       const baseInject = mps.gt(1) ? mps.times(300) : new Decimal(100);
       
-      alert(`Investidor Anjo aplicou fundos!\n+$${baseInject.toExponential(2)}`);
+      alert(t('angel.alert', { amount: `$${baseInject.toExponential(2)}` }));
       addMoney(baseInject);
     }
   };
@@ -51,7 +53,7 @@ export function AngelInvestor() {
       className="tf-angel-investor" 
       style={{ top: position.top }}
       onClick={handleClick}
-      title="Aportes Adicionais (Clique!)"
+      title={t('angel.title')}
     >
       <div className="tf-angel-icon">💼</div>
     </div>

@@ -5,9 +5,11 @@ import { CurrencyDisplay } from '../ui/CurrencyDisplay';
 import { audioEngine } from '@/engine/audioEngine';
 import Decimal from 'break_infinity.js';
 import { usePrestigeStore } from '@/store/usePrestigeStore';
+import { useI18n } from '@/i18n/useI18n';
 import './UpgradePanel.css';
 
 export function UpgradePanel() {
+  const { t } = useI18n();
   const upgrades = useGameStore(state => state.upgrades);
   const moneyStr = useGameStore(state => state.money);
   const stores = useGameStore(state => state.stores);
@@ -36,10 +38,10 @@ export function UpgradePanel() {
 
   return (
     <div className="tf-upgrade-panel">
-      <h2 className="tf-upgrade-title">Pesquisa & Melhorias</h2>
+      <h2 className="tf-upgrade-title">{t('upgrade.title')}</h2>
       
       {availableUpgrades.length === 0 ? (
-        <div className="tf-upgrade-empty">Nenhum upgrade disponível no momento.</div>
+        <div className="tf-upgrade-empty">{t('upgrade.empty')}</div>
       ) : (
         <div className="tf-upgrade-list">
           {availableUpgrades.map(upgrade => {
@@ -50,8 +52,8 @@ export function UpgradePanel() {
               <div key={upgrade.id} className="tf-upgrade-item">
                 <div className="tf-upgrade-icon">{upgrade.emoji}</div>
                 <div className="tf-upgrade-info">
-                  <div className="tf-upgrade-name">{upgrade.name}</div>
-                  <div className="tf-upgrade-desc">{upgrade.description}</div>
+                  <div className="tf-upgrade-name">{t(`upgrade.${upgrade.id}.name`, undefined, upgrade.name)}</div>
+                  <div className="tf-upgrade-desc">{t(`upgrade.${upgrade.id}.description`, undefined, upgrade.description)}</div>
                 </div>
                 <Button 
                   variant={canAfford ? 'primary' : 'secondary'}

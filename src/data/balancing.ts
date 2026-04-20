@@ -14,6 +14,7 @@ export const BALANCE = {
   // Lojas
   STORE_COST_GROWTH: 1.15,       // Custo aumenta 15% por nível
   STORE_PROFIT_GROWTH: 1.10,     // Lucro aumenta 10% por nível
+  STORE_SELL_REFUND_RATE: 0.65,  // Venda retorna 65% do investimento teorico
 
   // Prestige
   PRESTIGE_MIN_EARNED: 1e6,      // Mínimo de $ para fazer prestige

@@ -5,15 +5,19 @@ import type { LeaderboardEntry } from '@/services/apiService';
 import { useGameStore } from '@/store/useGameStore';
 import { Button } from '@/components/ui/Button';
 import { CurrencyDisplay } from '@/components/ui/CurrencyDisplay';
+import { useI18n } from '@/i18n/useI18n';
 import Decimal from 'break_infinity.js';
 import './Leaderboard.css';
 
 export function LeaderboardPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const playerTotalEarned = useGameStore(state => state.totalMoneyEarned);
   
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const isPlayerEntry = (username: string) => username === '__player__' || username === 'Você' || username === 'You';
 
   useEffect(() => {
     // Fetch do Spring Boot Fake Layer
@@ -21,8 +25,8 @@ export function LeaderboardPage() {
       // Injeta p/ comparação
       
       const hydratedBoard = data.map(entry => {
-        if (entry.username === "Você") {
-           return { ...entry, totalCompanyValue: playerTotalEarned };
+        if (isPlayerEntry(entry.username)) {
+           return { ...entry, username: '__player__', totalCompanyValue: playerTotalEarned };
         }
         return entry;
       });
@@ -42,31 +46,31 @@ export function LeaderboardPage() {
   return (
     <div className="tf-leaderboard-page">
       <header className="tf-leaderboard-header">
-        <Button variant="secondary" onClick={() => navigate('/')}>⬅ VOLTAR</Button>
-        <h1>Mercado Global de Ações</h1>
+        <Button variant="secondary" onClick={() => navigate('/')}>⬅ {t('leaderboard.back')}</Button>
+        <h1>{t('leaderboard.title')}</h1>
         <div></div>
       </header>
 
       <div className="tf-leaderboard-content">
          <div className="tf-leaderboard-panel">
-            <h2>As Maiores Franquias do País</h2>
-            
+            <h2>{t('leaderboard.heading')}</h2>
+
             {loading ? (
-              <p>Conectando à Bolsa de Valores (Spring Boot)...</p>
+              <p>{t('leaderboard.loading')}</p>
             ) : (
               <table className="tf-leaderboard-table">
                  <thead>
                    <tr>
-                     <th>Rank</th>
-                     <th>Corporação</th>
-                     <th>Valuation ($)</th>
+                     <th>{t('leaderboard.rank')}</th>
+                     <th>{t('leaderboard.corp')}</th>
+                     <th>{t('leaderboard.valuation')}</th>
                    </tr>
                  </thead>
                  <tbody>
                     {board.map(entry => (
-                       <tr key={entry.username} className={entry.username === 'Você' ? 'player-row' : ''}>
+                       <tr key={entry.username} className={isPlayerEntry(entry.username) ? 'player-row' : ''}>
                          <td>#{entry.rank}</td>
-                         <td>{entry.username}</td>
+                         <td>{isPlayerEntry(entry.username) ? t('leaderboard.you') : entry.username}</td>
                          <td><CurrencyDisplay value={new Decimal(entry.totalCompanyValue)} size="sm" /></td>
                        </tr>
                     ))}
